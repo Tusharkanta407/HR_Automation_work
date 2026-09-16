@@ -2,12 +2,12 @@
 
 Next.js control plane for HR Automation.
 
-## What’s wired
+## Features
 
-- Landing page (`/`) — your layout/theme, HR copy
-- Google sign-in via **NextAuth** (modal + `/login`)
-- After login → `/dashboard`
-- Session provider + theme provider in root layout
+- Landing + Google sign-in (NextAuth)
+- Dashboard with local workflow list
+- Workflow builder with **Excalidraw** canvas + HR node palette
+- Save / Run Now (Save → localStorage; Run is UI stub only)
 
 ## Run
 
@@ -16,12 +16,20 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000 → sign in → Dashboard → Create workflow.
 
-## Google OAuth redirect
+## Routes
 
-In Google Cloud Console, authorized redirect URI must be:
+| Path | Purpose |
+|------|---------|
+| `/` | Landing |
+| `/login` | Google sign-in |
+| `/dashboard` | Workflow list |
+| `/workflows/new` | Create local draft |
+| `/workflows/[id]` | Excalidraw builder |
 
-`http://localhost:3000/api/auth/callback/google`
+## Notes
 
-Env lives in `apps/web/.env.local` (`NEXTAUTH_*`, `GOOGLE_*`).
+- Excalidraw loads client-only (`ssr: false`)
+- Workflow JSON + scene stored in `localStorage` key `hr-automation-workflows`
+- No Neon / Redis / worker in this slice

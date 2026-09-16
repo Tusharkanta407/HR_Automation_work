@@ -1,21 +1,32 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { signOut, useSession } from "next-auth/react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import Link from "next/link";
+import { Loader2, Plus, Workflow } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AppHeader } from "@/components/workflow/app-header";
+import {
+  deleteWorkflow,
+  listWorkflows,
+  type WorkflowDocument,
+} from "@/lib/workflow";
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [workflows, setWorkflows] = useState<WorkflowDocument[]>([]);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/login");
-    }
+    if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      setWorkflows(listWorkflows());
+    }
+  }, [status]);
 
   if (status === "loading" || !session) {
     return (
@@ -27,60 +38,73 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
-            HR Automation
-          </Link>
-          <nav className="hidden gap-4 text-sm text-muted-foreground sm:flex">
-            <span className="text-foreground">Dashboard</span>
-            <span className="cursor-not-allowed opacity-50">Workflows</span>
-            <span className="cursor-not-allowed opacity-50">Executions</span>
-          </nav>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-muted-foreground sm:inline">
-            {session.user?.name ?? session.user?.email}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => signOut({ callbackUrl: "/" })}
-          >
-            Sign out
-          </Button>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="mx-auto max-w-5xl px-6 py-10">
-        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-2 text-muted-foreground">
-          Welcome back{session.user?.name ? `, ${session.user.name}` : ""}.
-          Your automations will appear here.
-        </p>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border p-5">
-            <p className="text-sm text-muted-foreground">Workflows</p>
-            <p className="mt-2 text-3xl font-semibold">0</p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+            <p className="mt-2 text-muted-foreground">
+              Welcome back{session.user?.name ? `, ${session.user.name}` : ""}.
+              Design workflows on the Excalidraw canvas.
+            </p>
           </div>
-          <div className="rounded-xl border p-5">
-            <p className="text-sm text-muted-foreground">Queued runs</p>
-            <p className="mt-2 text-3xl font-semibold">0</p>
-          </div>
-          <div className="rounded-xl border p-5">
-            <p className="text-sm text-muted-foreground">Completed</p>
-            <p className="mt-2 text-3xl font-semibold">0</p>
-          </div>
+          <Button asChild>
+            <Link href="/workflows/new">
+              <Plus className="size-4" />
+              Create workflow
+            </Link>
+          </Button>
         </div>
 
-        <div className="mt-8 rounded-xl border p-6">
-          <h2 className="text-lg font-medium">Getting started</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Next up: seed the Low Attendance Alert workflow, wire Run Now, and
-            show execution status. Auth is ready — the control plane comes next.
-          </p>
-        </div>
+        {workflows.length === 0 ? (
+          <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/5 px-6 py-16 text-center backdrop-blur-sm">
+            <Workflow className="mb-4 size-10 text-muted-foreground" />
+            <h2 className="text-lg font-medium">No workflows yet</h2>
+            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+              Create your first automation. You&apos;ll get a Zapier-like builder
+              with an Excalidraw canvas and an HR node palette.
+            </p>
+            <Button className="mt-6" asChild>
+              <Link href="/workflows/new">
+                <Plus className="size-4" />
+                Create workflow
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+            {workflows.map((w) => (
+              <li
+                key={w.id}
+                className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm transition hover:border-white/20"
+              >
+                <Link href={`/workflows/${w.id}`} className="block">
+                  <p className="font-medium">{w.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {w.nodes.length} nodes · Updated{" "}
+                    {new Date(w.updatedAt).toLocaleString()}
+                  </p>
+                </Link>
+                <div className="mt-3 flex gap-2">
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/workflows/${w.id}`}>Open</Link>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      deleteWorkflow(w.id);
+                      setWorkflows(listWorkflows());
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </main>
     </div>
   );
