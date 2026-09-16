@@ -17,6 +17,8 @@ Ignore cron/scheduler until Manual Run works end-to-end. One happy-path workflow
 
 ---
 
+
+
 ## Architecture (locked)
 
 ```text
@@ -51,14 +53,18 @@ Ignore cron/scheduler until Manual Run works end-to-end. One happy-path workflow
 
 **What changed vs earlier drafts**
 
-| Before | After |
-|--------|--------|
-| Local Postgres in docker-compose | **Neon** hosted PostgreSQL |
-| Supabase (DB + Auth client) | **Neon** for DB only; **NextAuth** for Google login |
-| docker-compose: postgres + redis | docker-compose: **redis only** |
-| Blind client `UPDATE` for claim | **Atomic SQL** `UPDATE … WHERE status = 'QUEUED'` |
+
+| Before                           | After                                               |
+| -------------------------------- | --------------------------------------------------- |
+| Local Postgres in docker-compose | **Neon** hosted PostgreSQL                          |
+| Supabase (DB + Auth client)      | **Neon** for DB only; **NextAuth** for Google login |
+| docker-compose: postgres + redis | docker-compose: **redis only**                      |
+| Blind client `UPDATE` for claim  | **Atomic SQL** `UPDATE … WHERE status = 'QUEUED'`   |
+
 
 ---
+
+
 
 ## Target demo (Phase 1)
 
@@ -88,6 +94,8 @@ Ignore cron/scheduler until Manual Run works end-to-end. One happy-path workflow
 
 ---
 
+
+
 ## Repo shape
 
 ```text
@@ -106,6 +114,8 @@ hr-automation/
 Open whole repo in VS Code/Cursor. Open `hr-api/` in Visual Studio for .NET.
 
 ---
+
+
 
 ## Neon data model
 
@@ -186,6 +196,8 @@ That concurrency demo is a strong assignment talking point.
 
 ---
 
+
+
 ## Clients
 
 **Next.js + worker:** `pg`, Prisma, or Drizzle against `DATABASE_URL` (Neon).  
@@ -195,19 +207,25 @@ Tip: Neon’s **pooled** connection string is often better for Next.js; the long
 
 ---
 
+
+
 ## Build order
+
+
 
 ### Week 0 — Foundation
 
 - [x] Monorepo folders (`apps/web`, `apps/worker`, `packages/workflow-engine`, `hr-api`)
-- [ ] Create Neon project; copy `DATABASE_URL` into `.env`
+- [x] Create Neon project; copy `DATABASE_URL` into `.env`
 - [x] `docker-compose.yml` with **Redis only**
-- [ ] Shared env template filled (`.env.example` → `.env`)
+- [x] Shared env template filled (`.env.example` → `.env`)
 - [ ] Health checks: web, worker, hr-api, Neon, redis
 
 **Exit criteria:** Redis up locally; web/worker can reach Neon; .NET API responds.
 
 ---
+
+
 
 ### Phase 1A — Schema + Manual Run skeleton
 
@@ -234,6 +252,8 @@ Tip: Neon’s **pooled** connection string is often better for Next.js; the long
 
 ---
 
+
+
 ### Phase 1B — .NET mock HR API
 
 - `GET /api/attendance/monthly`
@@ -246,20 +266,26 @@ Seed mock employees + attendance.
 
 ---
 
+
+
 ### Phase 1C — Real workflow engine (one story)
 
-| Node | Where it runs | Notes |
-|------|---------------|-------|
-| `MANUAL_TRIGGER` | worker | no-op / pass context |
-| `GET_MONTHLY_ATTENDANCE` | worker → .NET | fetch list |
-| `FILTER` | worker only | e.g. attendance < 75 |
-| `GET_EMPLOYEE_DETAILS` | worker → .NET | enrich filtered ids |
-| `SEND_EMAIL` | worker → .NET | mock send |
-| `CONFIRMATION` | worker | write summary |
+
+| Node                     | Where it runs | Notes                |
+| ------------------------ | ------------- | -------------------- |
+| `MANUAL_TRIGGER`         | worker        | no-op / pass context |
+| `GET_MONTHLY_ATTENDANCE` | worker → .NET | fetch list           |
+| `FILTER`                 | worker only   | e.g. attendance < 75 |
+| `GET_EMPLOYEE_DETAILS`   | worker → .NET | enrich filtered ids  |
+| `SEND_EMAIL`             | worker → .NET | mock send            |
+| `CONFIRMATION`           | worker        | write summary        |
+
 
 **Exit criteria:** full Low Attendance flow with live status + logs in UI.
 
 ---
+
+
 
 ### Phase 1D — Dashboard UX
 
@@ -270,6 +296,8 @@ Seed mock employees + attendance.
 
 ---
 
+
+
 ### Phase 2 — Failure + retry
 
 - [ ] .NET timeout / 500 simulation
@@ -279,6 +307,8 @@ Seed mock employees + attendance.
 
 ---
 
+
+
 ### Phase 3 — Multiple workers
 
 - [ ] Run 2+ workers against same Redis + Neon
@@ -286,6 +316,8 @@ Seed mock employees + attendance.
 - [ ] Show concurrent executions across workers
 
 ---
+
+
 
 ### Phase 4 — Scheduler (last)
 
@@ -297,30 +329,38 @@ Worker does not change. Only execution creation changes.
 
 ---
 
+
+
 ## Deployment map (later)
 
-| Piece | Host |
-|-------|------|
-| Next.js | Vercel |
-| Node worker | Railway |
-| .NET HR API | Railway |
-| PostgreSQL | **Neon** |
-| Redis | Railway / managed |
+
+| Piece       | Host              |
+| ----------- | ----------------- |
+| Next.js     | Vercel            |
+| Node worker | Railway           |
+| .NET HR API | Railway           |
+| PostgreSQL  | **Neon**          |
+| Redis       | Railway / managed |
+
 
 ---
+
+
 
 ## What to build now
 
-1. Neon project + schema + `claim_execution` SQL  
-2. Wire `pg` / Prisma / Drizzle in web + worker  
-3. Implement `Run Now` enqueue path  
-4. Worker claim + SUCCESS with noop nodes  
-5. .NET attendance/employee/email mocks  
-6. Wire Low Attendance nodes  
-7. Execution status UI  
-8. Then: retries, multi-worker demo, scheduler, fancy builder  
+1. Neon project + schema + `claim_execution` SQL
+2. Wire `pg` / Prisma / Drizzle in web + worker
+3. Implement `Run Now` enqueue path
+4. Worker claim + SUCCESS with noop nodes
+5. .NET attendance/employee/email mocks
+6. Wire Low Attendance nodes
+7. Execution status UI
+8. Then: retries, multi-worker demo, scheduler, fancy builder
 
 ---
+
+
 
 ## Scope guardrails
 
@@ -351,11 +391,15 @@ Worker does not change. Only execution creation changes.
 
 ---
 
+
+
 ## Definition of done (first milestone)
 
 > Login → open Low Attendance workflow → Run Now → Queued/Running/Success → logs show N below 75% / email mock sent.
 
 ---
+
+
 
 ## Decision log (locked)
 
@@ -367,3 +411,4 @@ Worker does not change. Only execution creation changes.
 - Atomic `claim_execution` SQL for concurrency
 - NextAuth + Google for login
 - Vercel = control plane, Railway = worker + .NET (when deploying)
+

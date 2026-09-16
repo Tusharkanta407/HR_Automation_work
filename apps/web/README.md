@@ -1,28 +1,27 @@
 # apps/web
 
-Next.js control plane for the HR Automation Platform.
+Next.js control plane for HR Automation.
 
-## Responsibilities
+## What’s wired
 
-- Dashboard, workflow list/builder, execution status UI
-- Auth via NextAuth + Google
-- Control-plane API routes: save workflows, **Run Now** (insert `QUEUED` execution in Neon + enqueue BullMQ job)
-- Read execution status/logs from Neon for the UI
+- Landing page (`/`) — your layout/theme, HR copy
+- Google sign-in via **NextAuth** (modal + `/login`)
+- After login → `/dashboard`
+- Session provider + theme provider in root layout
 
-## Does not
-
-- Run long-lived workflows (that is `apps/worker`)
-- Call .NET HR domain APIs during execution (worker does)
-
-## Env
-
-Uses `DATABASE_URL` (Neon) and `REDIS_URL` (server-side enqueue). See repo root `.env.example`.
-
-## Getting Started
+## Run
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open http://localhost:3000
+
+## Google OAuth redirect
+
+In Google Cloud Console, authorized redirect URI must be:
+
+`http://localhost:3000/api/auth/callback/google`
+
+Env lives in `apps/web/.env.local` (`NEXTAUTH_*`, `GOOGLE_*`).
