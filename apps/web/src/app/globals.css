@@ -121,7 +121,7 @@
   }
 }
 
-/* Clippa-style soft glow behind the landing gradient */
+/* Soft glow behind the landing gradient */
 .blur-gradient-bottom {
   filter: blur(80px);
   transform: translateZ(0);

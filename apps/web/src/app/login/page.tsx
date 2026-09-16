@@ -1,6 +1,7 @@
 "use client";
 
 import SignInModal from "@/components/sign-in";
+import { GradientBackground } from "@/components/GradientBackground";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -25,10 +26,13 @@ export default function Login() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-transparent to-rose-800/50 p-4">
-      <div className="w-full max-w-md">
-        <SignInModal />
-      </div>
-    </main>
+    <>
+      <GradientBackground />
+      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <SignInModal />
+        </div>
+      </main>
+    </>
   );
 }
