@@ -1,15 +1,28 @@
 # apps/web
 
-Next.js application — dashboard, authentication, workflow builder, and control-plane API routes.
+Next.js control plane for the HR Automation Platform.
 
 ## Responsibilities
 
-- Google login
-- Automation CRUD
-- Workflow builder UI
-- `POST /api/automations/:id/run` → create execution + enqueue BullMQ job
-- Execution status / history views
+- Dashboard, workflow list/builder, execution status UI
+- Auth via NextAuth + Google
+- Control-plane API routes: save workflows, **Run Now** (insert `QUEUED` execution in Neon + enqueue BullMQ job)
+- Read execution status/logs from Neon for the UI
 
-## Status
+## Does not
 
-Scaffold only. App bootstrap comes in Phase 1A.
+- Run long-lived workflows (that is `apps/worker`)
+- Call .NET HR domain APIs during execution (worker does)
+
+## Env
+
+Uses `DATABASE_URL` (Neon) and `REDIS_URL` (server-side enqueue). See repo root `.env.example`.
+
+## Getting Started
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).

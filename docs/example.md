@@ -1,3 +1,5 @@
+> **Tech note (current plan):** Workflow/execution state lives in **Neon PostgreSQL**. Redis (local Docker) is only for BullMQ. The worker claims executions via an atomic SQL update/function (`QUEUED` → `RUNNING`) so two workers cannot run the same job. Older mentions of local Postgres or Supabase in this walkthrough should be read as Neon.
+
 Yes — **this example is much better for understanding the architecture**, because now there is no scheduler involved initially.
 
 Let's forget **9:30 AM, recurring jobs, cron, etc.** for a moment.

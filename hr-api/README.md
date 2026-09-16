@@ -12,6 +12,10 @@ Open this folder in **Visual Studio** for day-to-day C# work. The platform worke
 | GET | `/api/employees/{id}` | Employee details |
 | POST | `/api/notifications/email` | Mock email send |
 
+## Local URL
+
+Default target for the platform worker: `http://localhost:5000` (`HR_API_BASE_URL`). Adjust if Visual Studio `launchSettings` uses another port.
+
 ## Status
 
 Scaffold only. Project file and controllers come next.

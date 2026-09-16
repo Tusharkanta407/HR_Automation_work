@@ -1,22 +1,7 @@
-services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: hr-automation-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: hr
-      POSTGRES_PASSWORD: hr
-      POSTGRES_DB: hr_automation
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hr -d hr_automation"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+# Local infra: Redis only.
+# PostgreSQL is provided by Neon (cloud project).
 
+services:
   redis:
     image: redis:7-alpine
     container_name: hr-automation-redis
@@ -32,5 +17,4 @@ services:
       retries: 10
 
 volumes:
-  postgres_data:
   redis_data:

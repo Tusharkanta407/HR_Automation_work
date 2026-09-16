@@ -1,12 +1,12 @@
 # HR Automation Platform
 
-A workflow automation platform for HR operations. Users design automations in a visual dashboard, trigger them on demand (or later on a schedule), and background workers execute each step against mock HR APIs.
+A workflow automation platform for HR operations. Users design workflows in a visual dashboard, trigger them on demand (or later on a schedule), and background workers execute each step against mock HR APIs.
 
 This repository is a **two-stack monorepo**:
 
 | Stack | Role | Tech |
 |-------|------|------|
-| **Platform** | Control plane + job execution | Next.js, Node.js worker, BullMQ, PostgreSQL, Redis |
+| **Platform** | Control plane + job execution | Next.js, Node.js worker, BullMQ, **Neon (PostgreSQL)**, Redis |
 | **HR API** | Mock HR domain services | .NET 8 Web API |
 
 ---
@@ -14,43 +14,54 @@ This repository is a **two-stack monorepo**:
 ## Architecture
 
 ```text
-                         ┌──────────────────────┐
-                         │      HR USER         │
-                         │    Google Login      │
-                         └──────────┬───────────┘
-                                    │
-                                    ▼
-                         ┌──────────────────────┐
-                         │       Next.js        │
-                         │  Dashboard / Auth /  │
-                         │  Workflow Builder /  │
-                         │  Automation API      │
-                         └───────┬───────┬──────┘
-                                 │       │
-                       State     │       │ Queue job
-                                 ▼       ▼
-                         ┌──────────┐  ┌──────────┐
-                         │PostgreSQL│  │  Redis   │
-                         │          │  │ BullMQ   │
-                         └────▲─────┘  └────┬─────┘
-                              │             │
-                              │             ▼
-                              │      ┌──────────────┐
-                              │      │ Node.js      │
-                              │      │ Worker Pool  │
-                              │      │ Workflow     │
-                              │      │ Engine       │
-                              │             │
-                              │             │ HTTP
-                              │             ▼
-                              │      ┌──────────────┐
-                              │      │ .NET 8       │
-                              │      │ HR Mock API  │
-                              │      └──────────────┘
-                              └── execution state
+                 ┌─────────────────┐
+                 │    Next.js      │
+                 │   localhost:3000│
+                 └────────┬────────┘
+                          │
+                          ▼
+                 ┌─────────────────┐
+                 │   Neon DB       │
+                 │  PostgreSQL     │
+                 └────────▲────────┘
+                          │ claim / state
+                 ┌────────┴────────┐
+                 │     Redis       │
+                 │ localhost:6379  │
+                 └────────┬────────┘
+                          │ BullMQ job
+                          ▼
+                 ┌─────────────────┐
+                 │ Node.js Worker  │
+                 │ workflow-engine │
+                 └────────┬────────┘
+                          │ HTTP
+                          ▼
+                 ┌─────────────────┐
+                 │   .NET API      │
+                 │ localhost:5000  │
+                 └─────────────────┘
 ```
 
-**Design principle:** Next.js never executes long-running workflows. It creates an execution record, enqueues a job, and returns. Workers claim jobs, run the workflow engine, and call the .NET HR API for domain data.
+**Design principle:** Next.js never executes long-running workflows. It creates an execution record in **Neon**, enqueues a job in **Redis**, and returns. Workers claim jobs atomically in Postgres (`QUEUED` → `RUNNING`), run the workflow engine, and call the .NET HR API for domain data.
+
+**Database:** Neon-hosted PostgreSQL (not local Docker Postgres).  
+**Queue:** Redis via local Docker (BullMQ).  
+**Auth:** NextAuth + Google OAuth.
+
+---
+
+## Where data lives (Neon)
+
+| Table | Purpose |
+|-------|---------|
+| `workflows` | Saved automations |
+| `workflow_nodes` | Node type + config |
+| `workflow_edges` | Graph connections |
+| `executions` | Run instances + status |
+| `execution_logs` | Per-node input/output/errors |
+
+Concurrency (assignment requirement): claim via an atomic Postgres `UPDATE … WHERE status = 'QUEUED'` (ideally a `claim_execution` SQL function) so only one worker wins. See [docs/MOVE_FORWARD.md](./docs/MOVE_FORWARD.md).
 
 ---
 
@@ -59,34 +70,33 @@ This repository is a **two-stack monorepo**:
 ```text
 hr-automation/
 ├── apps/
-│   ├── web/                 # Next.js — dashboard, auth, automation APIs
+│   ├── web/                 # Next.js — dashboard, auth, workflow APIs
 │   └── worker/              # Node.js — BullMQ consumer + workflow runner
 ├── packages/
 │   └── workflow-engine/     # Shared workflow graph + node execution logic
 ├── hr-api/                  # .NET 8 — mock Employee / Attendance / Notification APIs
 ├── docs/                    # Design notes and planning docs
-├── docker-compose.yml       # Local PostgreSQL + Redis
-├── .env.example             # Environment variable template
+├── docker-compose.yml       # Local Redis only
+├── .env.example             # Neon DATABASE_URL + Redis + auth
 └── README.md
 ```
 
-### Stack A — Platform (VS Code)
+### Stack A — Platform (VS Code / Cursor)
 
-- `apps/web` — UI and control-plane API routes
-- `apps/worker` — long-running queue consumer
+- `apps/web` — UI and control-plane API routes (`pg` / Prisma / Drizzle → Neon)
+- `apps/worker` — long-running queue consumer (Neon + Redis)
 - `packages/workflow-engine` — shared execution logic used by the worker
 
 ### Stack B — HR API (Visual Studio)
 
 - `hr-api` — standalone .NET 8 Web API
-- Open this folder in Visual Studio when working on C# / EF Core
 - Called over HTTP by workers; not embedded in the Next.js app
 
 ---
 
 ## Core flow (Phase 1)
 
-Demo automation: **Low Attendance Alert**
+Demo workflow: **Low Attendance Alert**
 
 ```text
 [Manual Trigger]
@@ -102,10 +112,10 @@ Demo automation: **Low Attendance Alert**
 [Confirmation]
 ```
 
-1. HR creates or opens the automation in the dashboard  
-2. Clicks **Run Now** → `POST /api/automations/:id/run`  
-3. Next.js creates an execution (`QUEUED`) and enqueues `{ executionId }` in Redis  
-4. Worker claims the job (`QUEUED` → `RUNNING`), loads the graph, executes nodes  
+1. HR creates or opens the workflow in the dashboard  
+2. Clicks **Run Now** → `POST /api/workflows/:id/run`  
+3. Next.js inserts execution (`QUEUED`) in Neon and enqueues `{ executionId }` in Redis  
+4. Worker claims via atomic SQL (`QUEUED` → `RUNNING`), loads the graph, executes nodes  
 5. Dashboard shows Queued → Running → Success with per-node logs  
 
 Scheduler support comes later; the worker path stays the same.
@@ -116,7 +126,8 @@ Scheduler support comes later; the worker path stays the same.
 
 - Node.js 20+
 - .NET 8 SDK
-- Docker Desktop (PostgreSQL + Redis)
+- Docker Desktop (**Redis only**)
+- A [Neon](https://neon.tech) project (free tier is fine)
 - pnpm or npm (platform apps)
 - Visual Studio 2022 (optional, for `hr-api`)
 
@@ -132,26 +143,28 @@ cd hr-automation
 cp .env.example .env
 ```
 
-### 2. Start infrastructure
+Paste your Neon connection string into `DATABASE_URL`.
+
+### 2. Start Redis
 
 ```bash
 docker compose up -d
 ```
 
-Starts:
+Starts Redis on `localhost:6379`. PostgreSQL is remote (Neon).
 
-- PostgreSQL on `localhost:5432`
-- Redis on `localhost:6379`
+### 3. Apply Neon schema
 
-### 3. Platform stack (Stack A)
+Run the tables + `claim_execution` SQL against Neon (SQL Editor or `psql`) — see `docs/MOVE_FORWARD.md`.
+
+### 4. Platform stack (Stack A)
 
 ```bash
-# from repo root (once package manifests exist)
 cd apps/web && npm install && npm run dev
 cd apps/worker && npm install && npm run dev
 ```
 
-### 4. HR API stack (Stack B)
+### 5. HR API stack (Stack B)
 
 ```bash
 cd hr-api
@@ -159,29 +172,27 @@ dotnet restore
 dotnet run
 ```
 
-Or open `hr-api/` in Visual Studio and run the Web API project.
+Or open `hr-api/` in Visual Studio.
 
-### 5. Verify
+### 6. Verify
 
-| Service | URL (local) |
-|---------|-------------|
+| Service | URL / location |
+|---------|----------------|
 | Web dashboard | http://localhost:3000 |
-| HR API | http://localhost:5080 (or launchSettings port) |
-| PostgreSQL | `localhost:5432` |
+| HR API | http://localhost:5000 (or launchSettings port) |
+| PostgreSQL | Neon project |
 | Redis | `localhost:6379` |
 
 ---
 
 ## Environment
 
-Copy `.env.example` to `.env` and adjust as needed. Typical variables:
-
 | Variable | Purpose |
 |----------|---------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection for BullMQ |
-| `HR_API_BASE_URL` | Base URL of the .NET mock API |
-| `NEXTAUTH_URL` / OAuth secrets | Google login (when auth is wired) |
+| `DATABASE_URL` | Neon PostgreSQL connection string |
+| `REDIS_URL` | Redis for BullMQ |
+| `HR_API_BASE_URL` | .NET mock API base URL |
+| `NEXTAUTH_*` / Google OAuth | Login when auth is wired |
 
 Never commit real secrets. Keep `.env` local.
 
@@ -194,7 +205,7 @@ Never commit real secrets. Keep `.env` local.
 | Next.js (`apps/web`) | Vercel |
 | Node worker (`apps/worker`) | Railway |
 | .NET HR API (`hr-api`) | Railway |
-| PostgreSQL | Railway / managed |
+| PostgreSQL | **Neon** |
 | Redis | Railway / managed |
 
 The worker is a **long-running process** and should not run as a Vercel serverless function.
@@ -207,10 +218,10 @@ The worker is a **long-running process** and should not run as a Vercel serverle
 |-------|--------|
 | **1** | Manual Run end-to-end (queue → worker → .NET → dashboard) |
 | **2** | Failures, retries, idempotent execution claims |
-| **3** | Multiple workers + duplicate-run protection |
+| **3** | Multiple workers + atomic claim proof on Neon |
 | **4** | Scheduler (cron creates executions; worker unchanged) |
 
-See `MOVE_FORWARD.md` and `docs/` for the detailed build plan.
+See [docs/MOVE_FORWARD.md](./docs/MOVE_FORWARD.md) for the detailed build plan.
 
 ---
 
@@ -218,16 +229,16 @@ See `MOVE_FORWARD.md` and `docs/` for the detailed build plan.
 
 | File | Contents |
 |------|----------|
-| [MOVE_FORWARD.md](./MOVE_FORWARD.md) | Build order and milestone checklist |
-| [plan.md](./plan.md) | High-level architecture diagram |
-| [example.md](./example.md) | Full Manual Run walkthrough |
+| [docs/MOVE_FORWARD.md](./docs/MOVE_FORWARD.md) | Build order, Neon schema, claim SQL |
+| [docs/plan.md](./docs/plan.md) | Architecture diagram |
+| [docs/example.md](./docs/example.md) | Full Manual Run walkthrough |
 | [docs/](./docs/) | Additional design notes |
 
 ---
 
 ## Project status
 
-Scaffolded monorepo. Application code for web, worker, workflow-engine, and hr-api will be added phase by phase starting with Manual Run.
+Monorepo scaffolded; Next.js and worker packages started. Database target is **Neon**. Application features land phase by phase starting with Manual Run.
 
 ---
 
