@@ -10,12 +10,14 @@ type FloatingChatPanelProps = {
   open: boolean;
   onClose: () => void;
   onOpen?: () => void;
+  activeNodeLabel?: string | null;
 };
 
 export default function FloatingChatPanel({
   open,
   onClose,
   onOpen,
+  activeNodeLabel,
 }: FloatingChatPanelProps) {
   const { data: session } = useSession();
   const [hoverTip, setHoverTip] = useState(false);
@@ -62,6 +64,7 @@ export default function FloatingChatPanel({
         <div className="absolute bottom-3 right-3 z-40 w-[min(100%,420px)] animate-in slide-in-from-bottom-2 fade-in duration-200">
           <AiAssistantCard
             userName={session?.user?.name}
+            activeNodeLabel={activeNodeLabel}
             onClose={onClose}
             onPromptSelect={(prompt) => {
               console.info("[HR Assistant prompt]", prompt);

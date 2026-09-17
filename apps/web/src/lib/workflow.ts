@@ -2,10 +2,11 @@ import {
   Zap, Clock, Link, ClipboardCheck, PartyPopper,
   Users, User, ClipboardList, CalendarCheck, CalendarOff,
   FileText, FileSearch, BarChart3, Mic, CalendarClock,
-  GitBranch, Filter, RefreshCw, GitMerge, Merge,
+  GitBranch, Filter, RefreshCw, GitMerge, Merge, Repeat,
   Mail, Globe, Radio, UserPen, FileEdit,
   UserPlus, CalendarPlus, UserRoundPlus, ListChecks,
   Timer, FileOutput, CircleCheck,
+  UserCheck, Code2, Webhook as WebhookIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ export type NodeType =
   // Logic
   | "CONDITION"
   | "FILTER"
+  | "FOR_EACH"
   | "TRANSFORM_DATA"
   | "SWITCH"
   | "MERGE"
@@ -48,11 +50,21 @@ export type NodeType =
   // Utility
   | "DELAY"
   | "LOG_RESULT"
-  | "SUCCESS";
+  | "SUCCESS"
+  // Advanced
+  | "HUMAN_APPROVAL"
+  | "CODE"
+  | "CUSTOM_API";
 
 // ── Categories ──────────────────────────────────────────────
 
-export type NodeCategory = "TRIGGERS" | "HR_DATA" | "LOGIC" | "ACTIONS" | "UTILITY";
+export type NodeCategory =
+  | "TRIGGERS"
+  | "HR_DATA"
+  | "LOGIC"
+  | "ACTIONS"
+  | "UTILITY"
+  | "ADVANCED";
 
 export type NodeCategoryMeta = {
   key: NodeCategory;
@@ -65,6 +77,7 @@ export const CATEGORIES: NodeCategoryMeta[] = [
   { key: "LOGIC", label: "Logic" },
   { key: "ACTIONS", label: "Actions" },
   { key: "UTILITY", label: "Utility" },
+  { key: "ADVANCED", label: "Advanced" },
 ];
 
 // ── Node catalog entry ──────────────────────────────────────
@@ -98,14 +111,15 @@ export const NODE_CATALOG: NodeCatalogEntry[] = [
   { type: "GET_INTERVIEWER_AVAILABILITY", label: "Get Interviewer Availability", description: "Check interviewer schedules", category: "HR_DATA", icon: CalendarClock },
 
   // ── Logic ──
-  { type: "CONDITION", label: "Condition / IF", description: "Branch based on a condition", category: "LOGIC", icon: GitBranch },
-  { type: "FILTER", label: "Filter", description: "Keep items matching criteria", category: "LOGIC", icon: Filter },
+  { type: "CONDITION", label: "Condition / IF", description: "Branch based on True / False conditions", category: "LOGIC", icon: GitBranch },
+  { type: "FILTER", label: "Filter", description: "Filter items matching criteria (e.g., Attendance < 75%)", category: "LOGIC", icon: Filter },
+  { type: "FOR_EACH", label: "For Each", description: "Iterate over employee or candidate list", category: "LOGIC", icon: Repeat },
   { type: "TRANSFORM_DATA", label: "Transform Data", description: "Map or reshape data", category: "LOGIC", icon: RefreshCw },
   { type: "SWITCH", label: "Switch", description: "Route to multiple branches", category: "LOGIC", icon: GitMerge },
   { type: "MERGE", label: "Merge", description: "Combine multiple inputs", category: "LOGIC", icon: Merge },
 
   // ── Actions ──
-  { type: "SEND_EMAIL", label: "Send Email", description: "Send a notification email", category: "ACTIONS", icon: Mail },
+  { type: "SEND_EMAIL", label: "Send Email", description: "Send automated email with variable mapping", category: "ACTIONS", icon: Mail },
   { type: "HTTP_REQUEST", label: "HTTP Request", description: "Make an external HTTP call", category: "ACTIONS", icon: Globe },
   { type: "SEND_WEBHOOK", label: "Send Webhook", description: "POST to an external endpoint", category: "ACTIONS", icon: Radio },
   { type: "UPDATE_EMPLOYEE", label: "Update Employee", description: "Modify employee record", category: "ACTIONS", icon: UserPen },
@@ -119,6 +133,11 @@ export const NODE_CATALOG: NodeCatalogEntry[] = [
   { type: "DELAY", label: "Delay", description: "Wait for a specified duration", category: "UTILITY", icon: Timer },
   { type: "LOG_RESULT", label: "Log Result", description: "Log data to execution log", category: "UTILITY", icon: FileOutput },
   { type: "SUCCESS", label: "Success", description: "Mark workflow as successful", category: "UTILITY", icon: CircleCheck },
+
+  // ── Advanced ──
+  { type: "HUMAN_APPROVAL", label: "Human Approval", description: "Pause workflow until HR Manager approves", category: "ADVANCED", icon: UserCheck },
+  { type: "CODE", label: "Custom Code", description: "Execute custom JS/TS data transformation", category: "ADVANCED", icon: Code2 },
+  { type: "CUSTOM_API", label: "Custom API", description: "Call proprietary internal HR API", category: "ADVANCED", icon: WebhookIcon },
 ];
 
 /** Get nodes for a specific category */
@@ -142,13 +161,17 @@ export type WorkflowNode = {
   id: string;
   type: NodeType;
   position: { x: number; y: number };
-  config: Record<string, unknown>;
+  config?: Record<string, unknown>;
+  status?: "needs_config" | "configured" | "running" | "failed";
 };
 
 export type WorkflowEdge = {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+  label?: string;
 };
 
 export type WorkflowDocument = {

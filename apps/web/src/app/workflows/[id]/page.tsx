@@ -6,10 +6,6 @@ import { useSession } from "next-auth/react";
 import { Loader2 } from "lucide-react";
 import { ReactFlowProvider, type Node, type Edge } from "@xyflow/react";
 import FlowCanvas from "@/components/workflow/flow-canvas";
-import FloatingToolbar from "@/components/workflow/floating-toolbar";
-import FloatingNodePalette from "@/components/workflow/floating-node-palette";
-import FloatingChatPanel from "@/components/workflow/floating-chat-panel";
-import FloatingPropertiesPanel from "@/components/workflow/floating-properties-panel";
 import {
   getWorkflow,
   saveWorkflow,
@@ -28,31 +24,54 @@ function toFlowNodes(wfNodes: WorkflowNode[]): Node[] {
     type: "hrNode",
     position: n.position,
     data: {
-      label: nodeLabel(n.type),
+      label: (n.config?.customLabel as string) || nodeLabel(n.type),
       nodeType: n.type,
+      status: n.status || (Object.keys(n.config || {}).length > 0 ? "configured" : "needs_config"),
+      config: n.config || {},
+      subtitle: (n.config?.summary as string) || "",
     } satisfies HRNodeData,
   }));
 }
 
 /** Convert our WorkflowEdges to React Flow Edges */
 function toFlowEdges(wfEdges: WorkflowEdge[]): Edge[] {
-  return wfEdges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    style: { stroke: "#94a3b8", strokeWidth: 2 },
-    type: "smoothstep",
-  }));
+  return wfEdges.map((e) => {
+    const isTrue = e.sourceHandle === "true";
+    const isFalse = e.sourceHandle === "false";
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle,
+      targetHandle: e.targetHandle,
+      label: isTrue ? "TRUE" : isFalse ? "FALSE" : e.label,
+      labelStyle: isTrue
+        ? { fill: "#059669", fontWeight: 700, fontSize: 10 }
+        : isFalse
+        ? { fill: "#e11d48", fontWeight: 700, fontSize: 10 }
+        : undefined,
+      labelBgStyle: { fill: "#ffffff", fillOpacity: 0.9, rx: 4, ry: 4 },
+      style: {
+        stroke: isTrue ? "#10b981" : isFalse ? "#f43f5e" : "#94a3b8",
+        strokeWidth: 2,
+      },
+      type: "smoothstep",
+    };
+  });
 }
 
 /** Convert React Flow Nodes back to our WorkflowNodes */
 function fromFlowNodes(flowNodes: Node[]): WorkflowNode[] {
-  return flowNodes.map((n) => ({
-    id: n.id,
-    type: (n.data as HRNodeData).nodeType as NodeType,
-    position: { x: n.position.x, y: n.position.y },
-    config: {},
-  }));
+  return flowNodes.map((n) => {
+    const data = n.data as HRNodeData;
+    return {
+      id: n.id,
+      type: data.nodeType,
+      position: { x: n.position.x, y: n.position.y },
+      config: data.config || {},
+      status: data.status || "needs_config",
+    };
+  });
 }
 
 /** Convert React Flow Edges back to our WorkflowEdges */
@@ -61,6 +80,9 @@ function fromFlowEdges(flowEdges: Edge[]): WorkflowEdge[] {
     id: e.id,
     source: e.source,
     target: e.target,
+    sourceHandle: e.sourceHandle ?? null,
+    targetHandle: e.targetHandle ?? null,
+    label: (e.label as string) || undefined,
   }));
 }
 
@@ -72,14 +94,6 @@ export default function WorkflowBuilderPage() {
 
   const [doc, setDoc] = useState<WorkflowDocument | null>(null);
   const [saveStatus, setSaveStatus] = useState("Saved");
-  const [runMessage, setRunMessage] = useState<string | null>(null);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-
-  // Track latest flow state for save
-  const [currentNodes, setCurrentNodes] = useState<Node[]>([]);
-  const [currentEdges, setCurrentEdges] = useState<Edge[]>([]);
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
@@ -93,8 +107,6 @@ export default function WorkflowBuilderPage() {
       return;
     }
     setDoc(existing);
-    setCurrentNodes(toFlowNodes(existing.nodes));
-    setCurrentEdges(toFlowEdges(existing.edges));
     setSaveStatus("Saved");
   }, [id, router]);
 
@@ -110,43 +122,35 @@ export default function WorkflowBuilderPage() {
     [doc?.id]
   );
 
-  const handleNodesChange = useCallback(
-    (nodes: Node[]) => {
-      setCurrentNodes(nodes);
-      setSaveStatus("Unsaved");
+  const handleSave = useCallback(
+    (currentNodes: Node[], currentEdges: Edge[]) => {
+      if (!doc) return;
+      const next: WorkflowDocument = {
+        ...doc,
+        nodes: fromFlowNodes(currentNodes),
+        edges: fromFlowEdges(currentEdges),
+        updatedAt: new Date().toISOString(),
+      };
+      saveWorkflow(next);
+      setDoc(next);
+      setSaveStatus("Saved");
     },
-    []
+    [doc]
   );
 
-  const handleEdgesChange = useCallback(
-    (edges: Edge[]) => {
-      setCurrentEdges(edges);
-      setSaveStatus("Unsaved");
+  const handleRenameWorkflow = useCallback(
+    (newName: string) => {
+      if (!doc) return;
+      const next: WorkflowDocument = {
+        ...doc,
+        name: newName,
+        updatedAt: new Date().toISOString(),
+      };
+      saveWorkflow(next);
+      setDoc(next);
     },
-    []
+    [doc]
   );
-
-  const handleNodeSelect = useCallback((node: Node | null) => {
-    setSelectedNode(node);
-  }, []);
-
-  const handleSave = useCallback(() => {
-    if (!doc) return;
-    const next: WorkflowDocument = {
-      ...doc,
-      nodes: fromFlowNodes(currentNodes),
-      edges: fromFlowEdges(currentEdges),
-      updatedAt: new Date().toISOString(),
-    };
-    saveWorkflow(next);
-    setDoc(next);
-    setSaveStatus("Saved");
-  }, [doc, currentNodes, currentEdges]);
-
-  const handleRun = useCallback(() => {
-    setRunMessage("UI only — Run Now will enqueue jobs when the backend is wired.");
-    window.setTimeout(() => setRunMessage(null), 4000);
-  }, []);
 
   if (status === "loading" || !doc) {
     return (
@@ -160,43 +164,15 @@ export default function WorkflowBuilderPage() {
     <div className="h-screen w-screen overflow-hidden bg-[#faf8f3]">
       <ReactFlowProvider>
         <FlowCanvas
+          key={doc.id}
           initialNodes={initialNodes}
           initialEdges={initialEdges}
-          onNodesChange={handleNodesChange}
-          onEdgesChange={handleEdgesChange}
-          onNodeSelect={handleNodeSelect}
-        >
-          {/* Floating toolbar */}
-          <FloatingToolbar
-            title={doc.name}
-            paletteOpen={paletteOpen}
-            chatOpen={chatOpen}
-            onTogglePalette={() => setPaletteOpen((p) => !p)}
-            onToggleChat={() => setChatOpen((p) => !p)}
-            onSave={handleSave}
-            onRun={handleRun}
-            saveStatus={saveStatus}
-          />
-
-          {/* Run now banner */}
-          {runMessage && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 rounded-xl border border-[rgba(20,184,166,0.2)] bg-[#f0fdfa] px-4 py-2 text-center text-sm text-[#0d9488] shadow-sm animate-in fade-in duration-200">
-              {runMessage}
-            </div>
-          )}
-
-          {/* Floating panels */}
-          <FloatingNodePalette open={paletteOpen} />
-          <FloatingChatPanel
-            open={chatOpen}
-            onClose={() => setChatOpen(false)}
-            onOpen={() => setChatOpen(true)}
-          />
-          <FloatingPropertiesPanel
-            selectedNode={selectedNode}
-            onClose={() => setSelectedNode(null)}
-          />
-        </FlowCanvas>
+          title={doc.name}
+          saveStatus={saveStatus}
+          onDirty={() => setSaveStatus("Unsaved")}
+          onSave={handleSave}
+          onRenameWorkflow={handleRenameWorkflow}
+        />
       </ReactFlowProvider>
     </div>
   );
