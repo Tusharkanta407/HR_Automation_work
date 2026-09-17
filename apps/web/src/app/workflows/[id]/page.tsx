@@ -190,6 +190,7 @@ export default function WorkflowBuilderPage() {
           <FloatingChatPanel
             open={chatOpen}
             onClose={() => setChatOpen(false)}
+            onOpen={() => setChatOpen(true)}
           />
           <FloatingPropertiesPanel
             selectedNode={selectedNode}
