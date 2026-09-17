@@ -10,6 +10,7 @@ import {
   Zap,
   X,
 } from "lucide-react";
+import Image from "next/image";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,8 +80,14 @@ export function AiAssistantCard({
     <Card className="flex h-full max-h-[min(720px,calc(100vh-6rem))] w-full max-w-[420px] flex-col gap-4 border-[rgba(0,29,61,0.08)] bg-white p-4 shadow-xl">
       <div className="flex flex-row items-center justify-between p-0">
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-[#f0fdfa]">
-            <SparklesIcon className="size-4 text-[#14b8a6]" />
+          <div className="flex size-9 items-center justify-center">
+            <Image
+              src="/icons8-message-bot-100.png"
+              alt="HR assistant"
+              width={36}
+              height={36}
+              className="object-contain"
+            />
           </div>
           <div>
             <p className="text-sm font-semibold text-[#001d3d]">HR Assistant</p>
@@ -102,8 +109,14 @@ export function AiAssistantCard({
 
       <CardContent className="flex flex-1 flex-col gap-6 overflow-y-auto p-0">
         <div className="flex flex-col items-center justify-center space-y-6 px-2 py-4">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-[#0A0D12] shadow-md">
-            <SparklesIcon className="size-6 text-white/80" />
+          <div className="flex size-14 items-center justify-center">
+            <Image
+              src="/icons8-message-bot-100.png"
+              alt="HR assistant"
+              width={56}
+              height={56}
+              className="object-contain drop-shadow-sm"
+            />
           </div>
 
           <div className="flex flex-col space-y-2.5 text-center">
@@ -175,11 +188,17 @@ export function AiAssistantCard({
             </Select>
 
             <Button
-              className="h-7! gap-2 px-3! text-xs bg-[#14b8a6] text-white hover:bg-[#0d9488]"
+              className="size-8! p-0! bg-[#14b8a6] text-white hover:bg-[#0d9488]"
               type="button"
+              aria-label="Send prompt"
             >
-              <SparklesIcon className="size-3.5" />
-              Ask
+              <Image
+                src="/icons8-send-64.png"
+                alt=""
+                width={18}
+                height={18}
+                className="object-contain brightness-0 invert"
+              />
             </Button>
           </div>
         </div>

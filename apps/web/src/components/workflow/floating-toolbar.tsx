@@ -2,7 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { signOut, useSession } from "next-auth/react";
-import { LayoutGrid, MessageCircle, Play, Save } from "lucide-react";
+import { LayoutGrid, Play, Save } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 
 type FloatingToolbarProps = {
@@ -49,12 +50,18 @@ export default function FloatingToolbar({
           onClick={onToggleChat}
           className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 ${
             chatOpen
-              ? "bg-[#14b8a6] text-white shadow-sm"
-              : "text-[#001d3d]/70 hover:bg-[#f0fdfa] hover:text-[#14b8a6]"
+              ? "bg-[#f0fdfa] ring-1 ring-[#14b8a6]/30 shadow-sm"
+              : "hover:bg-[#f0fdfa]"
           }`}
           title="AI Assistant"
         >
-          <MessageCircle className="h-4 w-4" />
+          <Image
+            src="/icons8-message-bot-100.png"
+            alt="AI Assistant"
+            width={22}
+            height={22}
+            className="object-contain"
+          />
         </button>
       </div>
 
