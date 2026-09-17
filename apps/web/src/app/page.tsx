@@ -26,20 +26,21 @@ export default function App() {
 
   if (status === "loading" || session) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin" />
+      <div className="flex h-screen items-center justify-center bg-white">
+        <Loader2 className="h-10 w-10 animate-spin text-zinc-500" />
       </div>
     );
   }
 
   return (
-    <>
+    <div className="relative min-h-screen w-full bg-white text-zinc-900">
       <GradientBackground />
+
       <main className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center gap-16 px-4 pt-32 pb-12 md:px-6 lg:px-8">
         <div className="mx-auto flex max-w-2xl flex-col gap-6 text-center">
           <div className="flex flex-col gap-2 text-center">
             <motion.h1
-              className="text-4xl font-medium tracking-tight md:text-5xl"
+              className="text-4xl font-medium tracking-tight text-zinc-900 md:text-5xl"
               variants={fadeUpVariants}
               initial="initial"
               animate="animate"
@@ -49,7 +50,7 @@ export default function App() {
             </motion.h1>
 
             <motion.p
-              className="mx-auto max-w-md text-lg text-secondary-foreground"
+              className="mx-auto max-w-md text-lg text-zinc-600"
               variants={fadeUpVariants}
               initial="initial"
               animate="animate"
@@ -72,12 +73,12 @@ export default function App() {
         </div>
 
         {/* Upload your demo later as public/demo.mp4 and swap this placeholder */}
-        <div className="aspect-video w-full max-w-3xl rounded-3xl border bg-muted/30" />
+        <div className="aspect-video w-full max-w-3xl rounded-3xl border border-teal-200/60 bg-white/50 shadow-sm backdrop-blur-sm" />
 
-        <footer className="flex items-center gap-2 text-sm text-muted-foreground">
+        <footer className="flex items-center gap-2 text-sm text-zinc-500">
           <p>© {new Date().getFullYear()} HR Automation. All rights reserved.</p>
         </footer>
       </main>
-    </>
+    </div>
   );
 }

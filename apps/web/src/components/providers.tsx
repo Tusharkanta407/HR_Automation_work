@@ -8,8 +8,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider>
       <ThemeProvider
         attribute="class"
-        defaultTheme="dark"
-        forcedTheme="dark"
+        defaultTheme="light"
         enableSystem={false}
       >
         {children}
