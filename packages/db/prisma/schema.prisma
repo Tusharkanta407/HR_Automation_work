@@ -1,7 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// V1 product schema — HR Automation control plane
+// Postgres = source of truth; Redis/BullMQ is queue-only (not modeled here).
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +8,324 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum WorkflowVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum IntegrationType {
+  REST_API
+  SMTP
+  WEBHOOK
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+enum CredentialType {
+  API_KEY
+  BASIC
+  BEARER
+  SMTP
+  CUSTOM_JSON
+}
+
+enum TriggerType {
+  MANUAL
+  SCHEDULE
+  WEBHOOK
+  ASSESSMENT_COMPLETED
+  CANDIDATE_HIRED
+}
+
+enum ExecutionStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum NodeExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+enum WorkerStatus {
+  ONLINE
+  OFFLINE
+}
+
+// ─── Auth (NextAuth Prisma adapter) ──────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts     Account[]
+  sessions     Session[]
+  workflows    Workflow[]
+  integrations Integration[]
+  versionsCreated WorkflowVersion[] @relation("VersionCreatedBy")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Workflow product ────────────────────────────────────────────────────────
+
+model Workflow {
+  id               String         @id @default(cuid())
+  userId           String
+  name             String
+  description      String?
+  status           WorkflowStatus @default(DRAFT)
+  /// Pointer to the live published version used by Run / Schedule / Webhook
+  currentVersionId String?        @unique
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentVersion WorkflowVersion?  @relation("WorkflowCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions       WorkflowVersion[] @relation("WorkflowVersions")
+  triggers       WorkflowTrigger[]
+  executions     Execution[]
+
+  @@index([userId])
+}
+
+model WorkflowVersion {
+  id            String                @id @default(cuid())
+  workflowId    String
+  versionNumber Int
+  status        WorkflowVersionStatus @default(DRAFT)
+  createdById   String
+  createdAt     DateTime              @default(now())
+  publishedAt   DateTime?
+
+  workflow           Workflow       @relation("WorkflowVersions", fields: [workflowId], references: [id], onDelete: Cascade)
+  createdBy          User           @relation("VersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  currentForWorkflow Workflow?      @relation("WorkflowCurrentVersion")
+  nodes              WorkflowNode[]
+  edges              WorkflowEdge[]
+  executions         Execution[]
+
+  @@unique([workflowId, versionNumber])
+  @@index([workflowId])
+}
+
+model WorkflowNode {
+  id                String   @id @default(cuid())
+  workflowVersionId String
+  /// Extensible string: MANUAL_TRIGGER, GET_MONTHLY_ATTENDANCE, FILTER, SEND_EMAIL, …
+  type              String
+  name              String
+  integrationId     String?
+  config            Json     @default("{}")
+  positionX         Float    @default(0)
+  positionY         Float    @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workflowVersion WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  integration     Integration?    @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  sourceEdges     WorkflowEdge[]  @relation("EdgeSource")
+  targetEdges     WorkflowEdge[]  @relation("EdgeTarget")
+  nodeExecutions  NodeExecution[]
+
+  @@index([workflowVersionId])
+  @@index([integrationId])
+}
+
+model WorkflowEdge {
+  id                String  @id @default(cuid())
+  workflowVersionId String
+  sourceNodeId      String
+  targetNodeId      String
+  /// e.g. "true" | "false" for IF branches
+  sourceHandle      String?
+  targetHandle      String?
+
+  workflowVersion WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  sourceNode      WorkflowNode    @relation("EdgeSource", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNode      WorkflowNode    @relation("EdgeTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
+
+  @@index([workflowVersionId])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+}
+
+model WorkflowTrigger {
+  id         String      @id @default(cuid())
+  workflowId String
+  type       TriggerType
+  config     Json        @default("{}")
+  enabled    Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([type, enabled])
+}
+
+// ─── Integrations (UI-configured company APIs) ───────────────────────────────
+
+model Integration {
+  id        String            @id @default(cuid())
+  userId    String
+  name      String
+  type      IntegrationType
+  baseUrl   String?
+  config    Json              @default("{}")
+  status    IntegrationStatus @default(ACTIVE)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentials IntegrationCredential[]
+  nodes       WorkflowNode[]
+
+  @@index([userId])
+}
+
+model IntegrationCredential {
+  id            String         @id @default(cuid())
+  integrationId String
+  type          CredentialType
+  /// AES-GCM ciphertext (base64). NEVER return decrypted to the browser.
+  encryptedData String         @db.Text
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId])
+}
+
+// ─── Execution ───────────────────────────────────────────────────────────────
+
+model Execution {
+  id                String          @id @default(cuid())
+  workflowId        String
+  workflowVersionId String
+  triggerType       TriggerType
+  status            ExecutionStatus @default(QUEUED)
+  /// Trigger payload (manual / webhook / schedule context)
+  input             Json?
+  /// Final summary for UI (e.g. employeesMatched, emailsSent)
+  output            Json?
+  attempt           Int             @default(1)
+  /// Runtime worker identity string (e.g. worker-02); claim field — not an FK
+  /// so claim works before/without a Worker heartbeat row
+  workerId          String?
+  lockedAt          DateTime?
+  heartbeatAt       DateTime?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  error             String?         @db.Text
+  /// Short-lived Run API dedupe; unique when set (Postgres allows multiple NULLs)
+  idempotencyKey    String?         @unique
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  workflow        Workflow        @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  workflowVersion WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  nodeExecutions  NodeExecution[]
+
+  @@index([workflowId])
+  @@index([workflowVersionId])
+  @@index([status, createdAt])
+  @@index([workerId])
+}
+
+model NodeExecution {
+  id          String              @id @default(cuid())
+  executionId String
+  nodeId      String
+  status      NodeExecutionStatus @default(PENDING)
+  attempt     Int                 @default(1)
+  /// Actual config / payload used this attempt (reproducibility)
+  input       Json?
+  output      Json?
+  error       String?             @db.Text
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  durationMs  Int?
+
+  execution Execution    @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  node      WorkflowNode @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+
+  @@unique([executionId, nodeId, attempt])
+  @@index([executionId])
+}
+
+// ─── Infrastructure (optional heartbeat; not execution truth) ────────────────
+
+model Worker {
+  id              String       @id @default(cuid())
+  workerId        String       @unique
+  status          WorkerStatus @default(ONLINE)
+  lastHeartbeatAt DateTime     @default(now())
+  startedAt       DateTime     @default(now())
+  metadata        Json?
 }
