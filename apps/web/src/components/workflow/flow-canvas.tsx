@@ -92,7 +92,9 @@ export default function FlowCanvas({
         return [...sliced, { nodes: newNodes, edges: newEdges }].slice(-25);
       });
       setHistoryIndex((prev) => Math.min(prev + 1, 24));
-      if (onDirty) queueMicrotask(onDirty);
+      if (onDirty) {
+        setTimeout(onDirty, 0);
+      }
     },
     [historyIndex, onDirty]
   );
@@ -103,7 +105,7 @@ export default function FlowCanvas({
       setNodes(prev.nodes);
       setEdges(prev.edges);
       setHistoryIndex((i) => i - 1);
-      if (onDirty) queueMicrotask(onDirty);
+      if (onDirty) setTimeout(onDirty, 0);
     }
   }, [history, historyIndex, setNodes, setEdges, onDirty]);
 
@@ -113,7 +115,7 @@ export default function FlowCanvas({
       setNodes(next.nodes);
       setEdges(next.edges);
       setHistoryIndex((i) => i + 1);
-      if (onDirty) queueMicrotask(onDirty);
+      if (onDirty) setTimeout(onDirty, 0);
     }
   }, [history, historyIndex, setNodes, setEdges, onDirty]);
 
@@ -123,30 +125,28 @@ export default function FlowCanvas({
       const isTrue = params.sourceHandle === "true";
       const isFalse = params.sourceHandle === "false";
 
-      setEdges((eds) => {
-        const nextEdges = addEdge(
-          {
-            ...params,
-            label: isTrue ? "TRUE" : isFalse ? "FALSE" : undefined,
-            labelStyle: isTrue
-              ? { fill: "#059669", fontWeight: 700, fontSize: 10 }
-              : isFalse
-              ? { fill: "#e11d48", fontWeight: 700, fontSize: 10 }
-              : undefined,
-            labelBgStyle: { fill: "#ffffff", fillOpacity: 0.9, rx: 4, ry: 4 },
-            style: {
-              stroke: isTrue ? "#10b981" : isFalse ? "#f43f5e" : "#94a3b8",
-              strokeWidth: 2,
-            },
-            type: "smoothstep",
+      const nextEdges = addEdge(
+        {
+          ...params,
+          label: isTrue ? "TRUE" : isFalse ? "FALSE" : undefined,
+          labelStyle: isTrue
+            ? { fill: "#059669", fontWeight: 700, fontSize: 10 }
+            : isFalse
+            ? { fill: "#e11d48", fontWeight: 700, fontSize: 10 }
+            : undefined,
+          labelBgStyle: { fill: "#ffffff", fillOpacity: 0.9, rx: 4, ry: 4 },
+          style: {
+            stroke: isTrue ? "#10b981" : isFalse ? "#f43f5e" : "#94a3b8",
+            strokeWidth: 2,
           },
-          eds
-        );
-        pushHistory(nodes, nextEdges);
-        return nextEdges;
-      });
+          type: "smoothstep",
+        },
+        edges
+      );
+      setEdges(nextEdges);
+      pushHistory(nodes, nextEdges);
     },
-    [setEdges, nodes, pushHistory]
+    [edges, nodes, setEdges, pushHistory]
   );
 
   // Clicking a node opens the focused blur dialog (ignore sticky notes)
@@ -175,11 +175,9 @@ export default function FlowCanvas({
         },
         selected: true,
       };
-      setNodes((nds) => {
-        const nextNodes = [...nds.map((n) => ({ ...n, selected: false })), clonedNode];
-        pushHistory(nextNodes, edges);
-        return nextNodes;
-      });
+      const nextNodes = [...nodes.map((n) => ({ ...n, selected: false })), clonedNode];
+      setNodes(nextNodes);
+      pushHistory(nextNodes, edges);
     },
     [nodes, edges, setNodes, pushHistory]
   );
@@ -187,13 +185,11 @@ export default function FlowCanvas({
   // Delete an edge connector
   const handleDeleteEdge = useCallback(
     (edgeId: string) => {
-      setEdges((eds) => {
-        const nextEdges = eds.filter((e) => e.id !== edgeId);
-        pushHistory(nodes, nextEdges);
-        return nextEdges;
-      });
+      const nextEdges = edges.filter((e) => e.id !== edgeId);
+      setEdges(nextEdges);
+      pushHistory(nodes, nextEdges);
     },
-    [nodes, setEdges, pushHistory]
+    [nodes, edges, setEdges, pushHistory]
   );
 
   // Right-click context menus for node and edge
@@ -219,10 +215,35 @@ export default function FlowCanvas({
     });
   }, []);
 
-  // Quick Add Node from Toolbar or Palette click (places at visible screen center)
+  // Keyboard shortcut: Delete / Backspace for selected node or edge
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const target = e.target as HTMLElement;
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+        // Check if a node is selected
+        const selectedN = nodes.find((n) => n.selected);
+        if (selectedN) {
+          handleDeleteNode(selectedN.id);
+          return;
+        }
+
+        // Check if an edge is selected
+        const selectedE = edges.find((e) => e.selected);
+        if (selectedE) {
+          handleDeleteEdge(selectedE.id);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  // Add Node to canvas (places at visible screen center)
   const handleAddNode = useCallback(
     (type: NodeType) => {
-      const id = crypto.randomUUID();
+      const id = `node_${Date.now()}`;
       const centerX = typeof window !== "undefined" ? window.innerWidth / 2 : 400;
       const centerY = typeof window !== "undefined" ? window.innerHeight / 2 : 300;
       const flowPos = screenToFlowPosition({ x: centerX, y: centerY });
@@ -243,13 +264,11 @@ export default function FlowCanvas({
         } satisfies HRNodeData,
       };
 
-      setNodes((nds) => {
-        const nextNodes = [...nds, newNode];
-        pushHistory(nextNodes, edges);
-        return nextNodes;
-      });
+      const nextNodes = [...nodes, newNode];
+      setNodes(nextNodes);
+      pushHistory(nextNodes, edges);
     },
-    [nodes.length, edges, setNodes, pushHistory, screenToFlowPosition]
+    [nodes, edges, setNodes, pushHistory, screenToFlowPosition]
   );
 
   // Add Sticky Note to canvas (places at visible screen center)
@@ -274,12 +293,10 @@ export default function FlowCanvas({
       },
     };
 
-    setNodes((nds) => {
-      const nextNodes = [...nds, newNote];
-      pushHistory(nextNodes, edges);
-      return nextNodes;
-    });
-  }, [nodes.length, edges, setNodes, pushHistory, screenToFlowPosition]);
+    const nextNodes = [...nodes, newNote];
+    setNodes(nextNodes);
+    pushHistory(nextNodes, edges);
+  }, [nodes, edges, setNodes, pushHistory, screenToFlowPosition]);
 
   // Drag & Drop from palette
   const onDragOver = useCallback((event: DragEvent) => {
@@ -311,45 +328,37 @@ export default function FlowCanvas({
         } satisfies HRNodeData,
       };
 
-      setNodes((nds) => {
-        const nextNodes = [...nds, newNode];
-        pushHistory(nextNodes, edges);
-        return nextNodes;
-      });
+      const nextNodes = [...nodes, newNode];
+      setNodes(nextNodes);
+      pushHistory(nextNodes, edges);
     },
-    [screenToFlowPosition, setNodes, edges, pushHistory]
+    [screenToFlowPosition, setNodes, nodes, edges, pushHistory]
   );
 
   // Save Node Config from Dialog
   const handleSaveNodeConfig = (nodeId: string, updatedData: Partial<HRNodeData>) => {
-    setNodes((nds) => {
-      const nextNodes = nds.map((n) =>
-        n.id === nodeId
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                ...updatedData,
-              },
-            }
-          : n
-      );
-      pushHistory(nextNodes, edges);
-      return nextNodes;
-    });
+    const nextNodes = nodes.map((n) =>
+      n.id === nodeId
+        ? {
+            ...n,
+            data: {
+              ...n.data,
+              ...updatedData,
+            },
+          }
+        : n
+    );
+    setNodes(nextNodes);
+    pushHistory(nextNodes, edges);
   };
 
   // Delete Node from Dialog
   const handleDeleteNode = (nodeId: string) => {
-    setNodes((nds) => {
-      const nextNodes = nds.filter((n) => n.id !== nodeId);
-      setEdges((eds) => {
-        const nextEdges = eds.filter((e) => e.source !== nodeId && e.target !== nodeId);
-        pushHistory(nextNodes, nextEdges);
-        return nextEdges;
-      });
-      return nextNodes;
-    });
+    const nextNodes = nodes.filter((n) => n.id !== nodeId);
+    const nextEdges = edges.filter((e) => e.source !== nodeId && e.target !== nodeId);
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    pushHistory(nextNodes, nextEdges);
   };
 
   // Live Test / Run Simulation

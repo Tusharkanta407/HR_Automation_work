@@ -200,6 +200,10 @@ export default function WorkflowBuilderPage() {
     [id]
   );
 
+  const handleDirty = useCallback(() => {
+    setSaveStatus((prev) => (prev === "Unsaved" ? prev : "Unsaved"));
+  }, []);
+
   if (status === "loading" || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#faf8f3]">
@@ -217,7 +221,7 @@ export default function WorkflowBuilderPage() {
           initialEdges={initialEdges}
           title={workflowName}
           saveStatus={saveStatus}
-          onDirty={() => setSaveStatus("Unsaved")}
+          onDirty={handleDirty}
           onSave={handleSave}
           onRenameWorkflow={handleRenameWorkflow}
         />
