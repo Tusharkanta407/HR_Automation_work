@@ -113,13 +113,17 @@ export function formatDbWorkflowToReactFlow(workflow: {
 /**
  * Normalizes incoming React Flow / workflow nodes and edges into
  * clean records ready for Prisma DB insertion.
+ * Scopes node and edge IDs to the versionId to prevent global primary key collisions.
  */
 export function prepareNodesAndEdgesForDb(
   versionId: string,
   rawNodes: any[] = [],
   rawEdges: any[] = []
 ) {
-  const nodesToCreate = rawNodes.map((n) => {
+  // Map of incoming/original nodeId -> globally unique DB nodeId
+  const idMap = new Map<string, string>();
+
+  const nodesToCreate = rawNodes.map((n, idx) => {
     const isSticky = n.type === "stickyNote";
     const data = n.data || {};
     const config = isSticky
@@ -138,10 +142,16 @@ export function prepareNodesAndEdgesForDb(
       ? (data.title || "Note")
       : (data.label || n.name || type);
 
-    const nodeId = String(n.id || crypto.randomUUID());
+    const originalId = n.id ? String(n.id) : `node-${idx}`;
+    const uniqueId = originalId.startsWith(`${versionId}_`)
+      ? originalId
+      : `${versionId}_${originalId}`;
+
+    idMap.set(originalId, uniqueId);
+    idMap.set(uniqueId, uniqueId);
 
     return {
-      id: nodeId,
+      id: uniqueId,
       workflowVersionId: versionId,
       type: String(type),
       name: String(name),
@@ -154,19 +164,22 @@ export function prepareNodesAndEdgesForDb(
   const validNodeIds = new Set(nodesToCreate.map((n) => n.id));
 
   const edgesToCreate = rawEdges
-    .filter((e) => {
-      const source = e.source || e.sourceNodeId;
-      const target = e.target || e.targetNodeId;
-      return validNodeIds.has(source) && validNodeIds.has(target);
+    .map((e, idx) => {
+      const origSource = String(e.source || e.sourceNodeId || "");
+      const origTarget = String(e.target || e.targetNodeId || "");
+      const mappedSource = idMap.get(origSource) || origSource;
+      const mappedTarget = idMap.get(origTarget) || origTarget;
+
+      return {
+        id: `${versionId}_edge_${idx}_${crypto.randomUUID().slice(0, 8)}`,
+        workflowVersionId: versionId,
+        sourceNodeId: mappedSource,
+        targetNodeId: mappedTarget,
+        sourceHandle: e.sourceHandle ? String(e.sourceHandle) : null,
+        targetHandle: e.targetHandle ? String(e.targetHandle) : null,
+      };
     })
-    .map((e) => ({
-      id: String(e.id || crypto.randomUUID()),
-      workflowVersionId: versionId,
-      sourceNodeId: String(e.source || e.sourceNodeId),
-      targetNodeId: String(e.target || e.targetNodeId),
-      sourceHandle: e.sourceHandle ? String(e.sourceHandle) : null,
-      targetHandle: e.targetHandle ? String(e.targetHandle) : null,
-    }));
+    .filter((e) => validNodeIds.has(e.sourceNodeId) && validNodeIds.has(e.targetNodeId));
 
   return { nodesToCreate, edgesToCreate };
 }

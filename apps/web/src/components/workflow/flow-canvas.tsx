@@ -92,7 +92,7 @@ export default function FlowCanvas({
         return [...sliced, { nodes: newNodes, edges: newEdges }].slice(-25);
       });
       setHistoryIndex((prev) => Math.min(prev + 1, 24));
-      onDirty?.();
+      if (onDirty) queueMicrotask(onDirty);
     },
     [historyIndex, onDirty]
   );
@@ -103,7 +103,7 @@ export default function FlowCanvas({
       setNodes(prev.nodes);
       setEdges(prev.edges);
       setHistoryIndex((i) => i - 1);
-      onDirty?.();
+      if (onDirty) queueMicrotask(onDirty);
     }
   }, [history, historyIndex, setNodes, setEdges, onDirty]);
 
@@ -113,7 +113,7 @@ export default function FlowCanvas({
       setNodes(next.nodes);
       setEdges(next.edges);
       setHistoryIndex((i) => i + 1);
-      onDirty?.();
+      if (onDirty) queueMicrotask(onDirty);
     }
   }, [history, historyIndex, setNodes, setEdges, onDirty]);
 
