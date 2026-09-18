@@ -319,7 +319,7 @@ model NodeExecution {
   @@index([executionId])
 }
 
-// ─── Infrastructure (optional heartbeat; not execution truth) ────────────────
+
 
 model Worker {
   id              String       @id @default(cuid())

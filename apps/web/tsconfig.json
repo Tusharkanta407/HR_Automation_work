@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@hr-automation/db": ["../../packages/db/src/index.ts"]
     }
   },
   "include": [

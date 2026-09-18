@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2 } from "lucide-react";
-import { createWorkflowDraft } from "@/lib/workflow";
+import { createWorkflowApi, createWorkflowDraft } from "@/lib/workflow";
 
 export default function NewWorkflowPage() {
   const router = useRouter();
@@ -17,8 +17,24 @@ export default function NewWorkflowPage() {
     }
     if (status !== "authenticated") return;
 
-    const draft = createWorkflowDraft("Untitled workflow");
-    router.replace(`/workflows/${draft.id}`);
+    let isMounted = true;
+    async function create() {
+      const created = await createWorkflowApi({ name: "Untitled workflow" });
+      if (!isMounted) return;
+
+      if (created?.id) {
+        router.replace(`/workflows/${created.id}`);
+      } else {
+        const draft = createWorkflowDraft("Untitled workflow");
+        router.replace(`/workflows/${draft.id}`);
+      }
+    }
+
+    create();
+
+    return () => {
+      isMounted = false;
+    };
   }, [status, router]);
 
   return (

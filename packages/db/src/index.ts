@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../generated/prisma/client.js";
+import { PrismaClient } from "../generated/prisma/client";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 dotenv.config({ path: path.join(rootDir, ".env") });
@@ -47,12 +47,12 @@ export async function disconnectDb() {
   }
 }
 
-export * from "../generated/prisma/client.js";
-export { claimExecution, touchExecutionHeartbeat } from "./claim.js";
+export * from "../generated/prisma/client";
+export { claimExecution, touchExecutionHeartbeat } from "./claim";
 export {
   encryptCredential,
   decryptCredential,
   CREDENTIAL_SELECT_SAFE,
-} from "./credentials.js";
-export type { SideEffectKeyParts } from "./idempotency.js";
-export { buildSideEffectKey } from "./idempotency.js";
+} from "./credentials";
+export type { SideEffectKeyParts } from "./idempotency";
+export { buildSideEffectKey } from "./idempotency";

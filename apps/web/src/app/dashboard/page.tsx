@@ -40,6 +40,9 @@ import { Button } from "@/components/ui/button";
 import {
   deleteWorkflow,
   listWorkflows,
+  fetchWorkflowsApi,
+  createWorkflowApi,
+  deleteWorkflowApi,
   type WorkflowDocument,
 } from "@/lib/workflow";
 import {
@@ -70,11 +73,14 @@ export default function DashboardPage() {
     if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
 
+  const loadWorkflows = async () => {
+    const list = await fetchWorkflowsApi();
+    setWorkflows(list as any);
+  };
+
   useEffect(() => {
-    if (status === "authenticated") {
-      setWorkflows(listWorkflows());
-    }
-  }, [status]);
+    loadWorkflows();
+  }, []);
 
   const userName = useMemo(() => {
     return session?.user?.name || "Tushar Behera";
@@ -108,23 +114,34 @@ export default function DashboardPage() {
   // Dynamic notification list (empty if no unread alerts)
   const notifications: Array<{ id: string; title: string; subtitle: string; time: string }> = [];
 
-  const handleUseTemplate = (template: HRTemplate) => {
+  const handleUseTemplate = async (template: HRTemplate) => {
     const existing = workflows.find((w) => w.name === template.name);
     if (existing) {
       router.push(`/workflows/${existing.id}`);
       return;
     }
-    const created = instantiateTemplate(template.id);
+    const created = await createWorkflowApi({
+      name: template.doc.name,
+      nodes: template.doc.nodes,
+      edges: template.doc.edges,
+    });
     if (created) {
-      setWorkflows(listWorkflows());
+      await loadWorkflows();
       router.push(`/workflows/${created.id}`);
+    } else {
+      const local = instantiateTemplate(template.id);
+      if (local) {
+        setWorkflows(listWorkflows());
+        router.push(`/workflows/${local.id}`);
+      }
     }
   };
 
-  const handleDeleteWorkflow = (id: string, e: React.MouseEvent) => {
+  const handleDeleteWorkflow = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    await deleteWorkflowApi(id);
     deleteWorkflow(id);
-    setWorkflows(listWorkflows());
+    await loadWorkflows();
   };
 
   const filteredWorkflows = useMemo(() => {
@@ -468,7 +485,7 @@ export default function DashboardPage() {
                         </div>
 
                         <p className="mt-1 text-xs text-slate-500">
-                          {w.nodes.length} nodes · {w.edges.length} connections
+                          {(w.nodes?.length ?? (w as any).nodeCount ?? 0)} nodes · {(w.edges?.length ?? (w as any).edgeCount ?? 0)} connections
                         </p>
 
                         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -601,7 +618,7 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           <p className="text-xs text-slate-500 mt-1">
-                            {w.nodes.length} nodes · Updated {new Date(w.updatedAt).toLocaleDateString()}
+                            {(w.nodes?.length ?? (w as any).nodeCount ?? 0)} nodes · Updated {new Date(w.updatedAt).toLocaleDateString()}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">

@@ -182,7 +182,7 @@ export type WorkflowDocument = {
   edges: WorkflowEdge[];
 };
 
-// ── LocalStorage persistence ────────────────────────────────
+// ── API & Persistence ──────────────────────────────────────────
 
 const STORAGE_KEY = "hr-automation-workflows";
 
@@ -223,3 +223,150 @@ export function deleteWorkflow(id: string): void {
   const all = listWorkflows().filter((w) => w.id !== id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
 }
+
+// ── Backend API Integration ──────────────────────────────────
+
+export type ApiWorkflowSummary = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  updatedAt: string;
+  createdAt: string;
+  versionNumber: number;
+  nodeCount: number;
+  edgeCount: number;
+};
+
+export type ApiWorkflowDetail = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  updatedAt: string;
+  versionNumber: number;
+  nodes: any[];
+  edges: any[];
+};
+
+export async function fetchWorkflowsApi(): Promise<ApiWorkflowSummary[]> {
+  try {
+    const res = await fetch("/api/workflows");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.workflows || [];
+  } catch (err) {
+    console.warn("[API] fetchWorkflows failed, falling back to localStorage:", err);
+    return listWorkflows().map((w) => ({
+      id: w.id,
+      name: w.name,
+      description: null,
+      status: "DRAFT",
+      updatedAt: w.updatedAt,
+      createdAt: w.updatedAt,
+      versionNumber: 1,
+      nodeCount: w.nodes.length,
+      edgeCount: w.edges.length,
+    }));
+  }
+}
+
+export async function fetchWorkflowApi(id: string): Promise<ApiWorkflowDetail | null> {
+  try {
+    const res = await fetch(`/api/workflows/${id}`);
+    if (!res.ok) {
+      if (res.status === 404) return null;
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return data.workflow;
+  } catch (err) {
+    console.warn("[API] fetchWorkflow failed, falling back to localStorage:", err);
+    const local = getWorkflow(id);
+    if (!local) return null;
+    return {
+      id: local.id,
+      name: local.name,
+      description: null,
+      status: "DRAFT",
+      updatedAt: local.updatedAt,
+      versionNumber: 1,
+      nodes: local.nodes.map((n) => ({
+        id: n.id,
+        type: "hrNode",
+        position: n.position,
+        data: {
+          label: (n.config?.customLabel as string) || nodeLabel(n.type),
+          nodeType: n.type,
+          status: n.status || "configured",
+          config: n.config || {},
+        },
+      })),
+      edges: local.edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        type: "smoothstep",
+      })),
+    };
+  }
+}
+
+export async function saveWorkflowApi(
+  id: string,
+  payload: {
+    name?: string;
+    description?: string;
+    status?: string;
+    nodes?: any[];
+    edges?: any[];
+  }
+): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/workflows/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("[API] saveWorkflow failed:", err);
+    return false;
+  }
+}
+
+export async function createWorkflowApi(payload?: {
+  name?: string;
+  description?: string;
+  nodes?: any[];
+  edges?: any[];
+}): Promise<ApiWorkflowDetail | null> {
+  try {
+    const res = await fetch("/api/workflows", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.workflow;
+  } catch (err) {
+    console.error("[API] createWorkflow failed:", err);
+    return null;
+  }
+}
+
+export async function deleteWorkflowApi(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/workflows/${id}`, {
+      method: "DELETE",
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("[API] deleteWorkflow failed:", err);
+    return false;
+  }
+}
+
