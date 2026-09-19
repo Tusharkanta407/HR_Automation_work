@@ -9,7 +9,8 @@
     "postinstall": "npm run generate -w @hr-automation/db",
     "generate": "npm run generate -w @hr-automation/db",
     "build": "npm run build -w web",
-    "vercel-build": "npm run generate -w @hr-automation/db && npm run build -w web",
+    "ensure-lightningcss": "node scripts/ensure-lightningcss.mjs",
+    "vercel-build": "npm run ensure-lightningcss && npm run generate -w @hr-automation/db && npm run build -w web",
     "dev:web": "npm run dev -w web"
   },
   "engines": {
