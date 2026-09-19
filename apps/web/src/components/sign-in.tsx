@@ -23,7 +23,10 @@ export default function SignInModal({ trigger }: SignInModalProps) {
   const handleSignIn = async () => {
     setLoading(true);
     try {
-      await signIn("google", { callbackUrl: "/dashboard" });
+      // Stay on the current host (localhost or Vercel). Do NOT hardcode
+      // hr-automation-work-web.vercel.app here — set NEXTAUTH_URL on Vercel instead.
+      const callbackUrl = `${window.location.origin}/dashboard`;
+      await signIn("google", { callbackUrl });
     } finally {
       setLoading(false);
       setOpen(false);

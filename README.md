@@ -201,6 +201,8 @@ dotnet run
 
 ## Deploy Next.js on Vercel
 
+Production URL: [https://hr-automation-work-web.vercel.app/](https://hr-automation-work-web.vercel.app/)
+
 Import the GitHub repo, then set:
 
 | Setting | Value |
@@ -209,17 +211,28 @@ Import the GitHub repo, then set:
 | **Root Directory** | `apps/web` |
 | **Build / Install** | leave defaults — [`apps/web/vercel.json`](apps/web/vercel.json) runs root `npm install` + `npm run vercel-build` (generates Prisma client, then `next build`) |
 
-**Environment variables** (Production + Preview):
+**Environment variables** (Production):
 
 | Variable | Notes |
 |----------|--------|
 | `DATABASE_URL` | Neon connection string |
-| `NEXTAUTH_URL` | `https://your-app.vercel.app` |
+| `NEXTAUTH_URL` | `https://hr-automation-work-web.vercel.app` |
 | `NEXTAUTH_SECRET` | long random string |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth client |
 | `CREDENTIALS_SECRET` | min 16 chars (integration encryption) |
+| `NEXT_PUBLIC_APP_URL` | `https://hr-automation-work-web.vercel.app` (optional) |
 
-Google OAuth redirect URI: `https://your-app.vercel.app/api/auth/callback/google`
+**Google Cloud Console** → OAuth 2.0 Client → Authorized redirect URIs (keep both):
+
+- `http://localhost:3000/api/auth/callback/google`
+- `https://hr-automation-work-web.vercel.app/api/auth/callback/google`
+
+Authorized JavaScript origins:
+
+- `http://localhost:3000`
+- `https://hr-automation-work-web.vercel.app`
+
+After changing env or Google settings, redeploy on Vercel.
 
 Vercel hosts **only** the web app. The worker + Redis belong on Railway (or similar); Run Now will queue but not execute until a worker is running.
 
