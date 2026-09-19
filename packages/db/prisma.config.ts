@@ -13,6 +13,7 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // generate does not need a live DB; migrate/deploy need DATABASE_URL set
+    url: process.env["DATABASE_URL"] ?? "postgresql://postgres:postgres@localhost:5432/postgres",
   },
 });

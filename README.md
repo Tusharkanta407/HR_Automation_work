@@ -73,11 +73,13 @@ hr-automation/
 │   ├── web/                 # Next.js — dashboard, auth, workflow APIs
 │   └── worker/              # Node.js — BullMQ consumer + workflow runner
 ├── packages/
+│   ├── db/                  # Prisma schema + shared client (@hr-automation/db)
 │   └── workflow-engine/     # Shared workflow graph + node execution logic
-├── hr-api/                  # .NET 8 — mock Employee / Attendance / Notification APIs
-├── docs/                    # Design notes and planning docs
+├── hr-api/                  # Optional .NET mock (point Connector baseUrl here)
+├── docs/
+├── package.json             # npm workspaces + vercel-build
 ├── docker-compose.yml       # Local Redis only
-├── .env.example             # Neon DATABASE_URL + Redis + auth
+├── .env.example
 └── README.md
 ```
 
@@ -143,7 +145,7 @@ cd hr-automation
 cp .env.example .env
 ```
 
-Paste your Neon connection string into `DATABASE_URL`.
+Paste your Neon connection string into `DATABASE_URL`. Also copy auth vars into `apps/web/.env.local` (Next.js loads env from the app folder).
 
 ### 2. Start Redis
 
@@ -153,18 +155,33 @@ docker compose up -d
 
 Starts Redis on `localhost:6379`. PostgreSQL is remote (Neon).
 
-### 3. Apply Neon schema
+### 3. Install (monorepo) + Prisma client
 
-Run the tables + `claim_execution` SQL against Neon (SQL Editor or `psql`) — see `docs/MOVE_FORWARD.md`.
+From the **repo root**:
+
+```bash
+npm install
+```
+
+This installs `apps/web` + `packages/db` workspaces and runs `prisma generate`.
+
+Schema migrations (already applied in Neon for V1):
+
+```bash
+npm run migrate:deploy -w @hr-automation/db
+```
 
 ### 4. Platform stack (Stack A)
 
 ```bash
-cd apps/web && npm install && npm run dev
+npm run dev:web
+# worker (separate terminal, after worker package is wired):
 cd apps/worker && npm install && npm run dev
 ```
 
-### 5. HR API stack (Stack B)
+### 5. HR API stack (Stack B) — optional
+
+Only if you point a Connector `baseUrl` at a local mock API:
 
 ```bash
 cd hr-api
@@ -172,16 +189,39 @@ dotnet restore
 dotnet run
 ```
 
-Or open `hr-api/` in Visual Studio.
-
 ### 6. Verify
 
 | Service | URL / location |
 |---------|----------------|
 | Web dashboard | http://localhost:3000 |
-| HR API | http://localhost:5000 (or launchSettings port) |
 | PostgreSQL | Neon project |
 | Redis | `localhost:6379` |
+
+---
+
+## Deploy Next.js on Vercel
+
+Import the GitHub repo, then set:
+
+| Setting | Value |
+|---------|--------|
+| **Framework Preset** | Next.js |
+| **Root Directory** | `apps/web` |
+| **Build / Install** | leave defaults — [`apps/web/vercel.json`](apps/web/vercel.json) runs root `npm install` + `npm run vercel-build` (generates Prisma client, then `next build`) |
+
+**Environment variables** (Production + Preview):
+
+| Variable | Notes |
+|----------|--------|
+| `DATABASE_URL` | Neon connection string |
+| `NEXTAUTH_URL` | `https://your-app.vercel.app` |
+| `NEXTAUTH_SECRET` | long random string |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth client |
+| `CREDENTIALS_SECRET` | min 16 chars (integration encryption) |
+
+Google OAuth redirect URI: `https://your-app.vercel.app/api/auth/callback/google`
+
+Vercel hosts **only** the web app. The worker + Redis belong on Railway (or similar); Run Now will queue but not execute until a worker is running.
 
 ---
 
@@ -190,9 +230,9 @@ Or open `hr-api/` in Visual Studio.
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Neon PostgreSQL connection string |
-| `REDIS_URL` | Redis for BullMQ |
-| `HR_API_BASE_URL` | .NET mock API base URL |
-| `NEXTAUTH_*` / Google OAuth | Login when auth is wired |
+| `REDIS_URL` | Redis for BullMQ (worker) |
+| `CREDENTIALS_SECRET` | Encrypt Integration credentials |
+| `NEXTAUTH_*` / Google OAuth | Login |
 
 Never commit real secrets. Keep `.env` local.
 
@@ -204,7 +244,7 @@ Never commit real secrets. Keep `.env` local.
 |-----------|------|
 | Next.js (`apps/web`) | Vercel |
 | Node worker (`apps/worker`) | Railway |
-| .NET HR API (`hr-api`) | Railway |
+| Company HR API | User Connector `baseUrl` (any host) |
 | PostgreSQL | **Neon** |
 | Redis | Railway / managed |
 

@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc",
     "generate": "prisma generate",
+    "postinstall": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:status": "prisma migrate status",
@@ -21,12 +22,12 @@
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "dotenv": "^16.6.1",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "prisma": "^7.10.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
     "@types/pg": "^8.15.4",
-    "prisma": "^7.10.0",
     "typescript": "^5.8.3"
   },
   "license": "ISC"
