@@ -30,6 +30,7 @@ function toFlowNodes(wfNodes: WorkflowNode[]): Node[] {
       status: n.status || (Object.keys(n.config || {}).length > 0 ? "configured" : "needs_config"),
       config: n.config || {},
       subtitle: (n.config?.summary as string) || "",
+      integrationId: n.integrationId ?? null,
     } satisfies HRNodeData,
   }));
 }
@@ -85,6 +86,7 @@ function fromFlowNodes(flowNodes: Node[]): WorkflowNode[] {
       position: { x: n.position.x, y: n.position.y },
       config: data.config || {},
       status: data.status || "needs_config",
+      integrationId: data.integrationId ?? null,
     };
   });
 }

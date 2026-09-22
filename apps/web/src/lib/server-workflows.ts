@@ -8,6 +8,7 @@ type DbNode = {
   config: any;
   positionX: number;
   positionY: number;
+  integrationId?: string | null;
 };
 
 type DbEdge = {
@@ -69,6 +70,7 @@ export function formatDbWorkflowToReactFlow(workflow: {
             status: cfg.status || "configured",
             config: cfg,
             subtitle: cfg.subtitle,
+            integrationId: n.integrationId ?? null,
           } satisfies HRNodeData),
     };
   });
@@ -158,6 +160,14 @@ export function prepareNodesAndEdgesForDb(
       positionX: typeof n.position?.x === "number" ? n.position.x : 0,
       positionY: typeof n.position?.y === "number" ? n.position.y : 0,
       config: config as any,
+      integrationId:
+        isSticky
+          ? null
+          : data.integrationId
+            ? String(data.integrationId)
+            : n.integrationId
+              ? String(n.integrationId)
+              : null,
     };
   });
 

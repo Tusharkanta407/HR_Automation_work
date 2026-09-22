@@ -231,21 +231,24 @@ model WorkflowTrigger {
 // ─── Integrations (UI-configured company APIs) ───────────────────────────────
 
 model Integration {
-  id        String            @id @default(cuid())
-  userId    String
-  name      String
-  type      IntegrationType
+  id     String            @id @default(cuid())
+  userId String
+  name   String
+  type   IntegrationType
+  /// Extensible provider slug for future OAuth apps. V1: CUSTOM_REST | CUSTOM_SMTP | CUSTOM_WEBHOOK
+  provider  String            @default("CUSTOM_REST")
   baseUrl   String?
   config    Json              @default("{}")
   status    IntegrationStatus @default(ACTIVE)
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
-  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   credentials IntegrationCredential[]
   nodes       WorkflowNode[]
 
   @@index([userId])
+  @@index([userId, type])
 }
 
 model IntegrationCredential {

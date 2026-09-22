@@ -11,6 +11,7 @@ export type HRNodeData = {
   status?: "needs_config" | "configured" | "running" | "failed";
   config?: Record<string, any>;
   subtitle?: string;
+  integrationId?: string | null;
 };
 
 function HRCustomNode({ data, selected }: NodeProps) {
@@ -30,8 +31,10 @@ function HRCustomNode({ data, selected }: NodeProps) {
       ? nodeData.config.condition
       : nodeData.nodeType === "FOR_EACH"
       ? (nodeData.config?.collection ? `Each in ${nodeData.config.collection}` : "Each Employee")
-      : nodeData.nodeType === "SEND_EMAIL" && nodeData.config?.recipient
-      ? `To: ${nodeData.config.recipient}`
+      : nodeData.nodeType === "SEND_EMAIL" && (nodeData.config?.recipient || nodeData.config?.to)
+      ? `To: ${nodeData.config?.recipient || nodeData.config?.to}`
+      : nodeData.config?.path
+      ? `${nodeData.config?.method || "GET"} ${nodeData.config.path}`
       : "");
 
   return (

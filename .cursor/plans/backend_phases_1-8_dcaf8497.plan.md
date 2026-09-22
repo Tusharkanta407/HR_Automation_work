@@ -1,16 +1,16 @@
 ---
 name: Backend Phases 1-8
-overview: "Phase 1 done. Phase 2 = Connectors UI page (fields per connector type for successful nodes) + Integrations API. Then Run Now → QUEUED → Redis → Worker → engine uses node.integrationId. No mock .NET."
+overview: "Phase 1 done. Phase 2 = Connection Management (Custom REST / SMTP / Webhook + Test Connection + encrypted credentials). Then Run Now → QUEUED → Redis → Worker → engine uses node.integrationId. No mock .NET. V1 custom only; OAuth ATS/Email providers later on same model."
 todos:
   - id: p1-prisma
     content: "PHASE 1: Prisma + Neon — DONE"
     status: completed
   - id: p2-connectors-ui
-    content: "PHASE 2: Connectors page (REST/SMTP/Webhook forms) + Integrations CRUD API"
-    status: pending
+    content: "PHASE 2: Connection Management — Connections page (Custom REST/SMTP/Webhook) + Integrations CRUD + Test Connection"
+    status: completed
   - id: p2b-node-picker
-    content: "PHASE 2b: Builder node settings — pick connector + path/method (not on Connectors page)"
-    status: pending
+    content: "PHASE 2b: Builder node settings — pick Connection + path/method/email (not secrets on node)"
+    status: completed
   - id: p3-workflow-crud
     content: "PHASE 3: Finish workflow CRUD / publish + save integrationId on nodes"
     status: pending
@@ -32,14 +32,15 @@ todos:
 isProject: false
 ---
 
-# Backend roadmap + Connectors UI design
+# Backend roadmap + Connection Management
 
 ## Locked decisions
 
 - Next.js **does not** execute workflows (enqueue only).
-- **Connectors page** = where HR pastes connection secrets / base URLs once.
-- **Node settings** = where HR picks which connector + path/params for that step.
+- **Connections page** (product copy) = where HR authorizes external systems once. DB/API name remains `Integration`.
+- **Node settings** = where HR picks which Connection + path/params for that step.
 - Engine uses `Integration.baseUrl` + decrypted credential + `node.config` — no hardcoded mock `.NET`.
+- **V1 providers only:** Custom REST, SMTP, Webhook. Schema is provider-extensible (`provider` field) for later Greenhouse / M365 / Gmail OAuth **without rewriting the engine**.
 
 ---
 
@@ -50,36 +51,36 @@ isProject: false
 | UI + React Flow + NODE_CATALOG | Done ([`workflow.ts`](apps/web/src/lib/workflow.ts)) |
 | Phase 1 Prisma/Neon | Done |
 | `/api/workflows` CRUD | Partially done |
-| `/api/integrations` + Connectors page | **Not built** |
+| `/api/integrations` + Connections page | Done |
 | `/api/workflows/[id]/run` + worker | Not built |
 
 ---
 
-## PHASE 2 — How Connectors work (design freeze)
+## PHASE 2 — Connection Management (design freeze)
 
 ### Split of responsibility
 
 ```text
-CONNECTORS PAGE (once per company system)
+CONNECTIONS PAGE (once per company system)
   → name, type, baseUrl / host, auth secrets
   → saved as Integration + IntegrationCredential
 
 BUILDER NODE SETTINGS (per node)
-  → dropdown: which Integration?
+  → dropdown: which Connection (Integration)?
   → method, path, query, email template, etc. in node.config
   → saves WorkflowNode.integrationId + config JSON
 ```
 
 ```mermaid
 flowchart LR
-  ConnectorsPage["Connectors page"] --> Integration
+  ConnectionsPage["Connections page"] --> Integration
   Integration --> Credential["encrypted credential"]
   NodeSettings["Node settings"] -->|integrationId| Integration
   NodeSettings -->|config path method| NodeConfig["node.config"]
   Engine -->|"baseUrl + auth + path"| CompanyAPI["Company API / SMTP"]
 ```
 
-**Rule:** Secrets and base URL live on the **connector**. Paths and business params live on the **node**. Never put API keys in node config.
+**Rule:** Secrets and base URL live on the **Connection**. Paths and business params live on the **node**. Never put API keys in node config.
 
 ---
 
@@ -180,17 +181,17 @@ Builder should **hide** connector picker for these types.
 
 ---
 
-### Connectors page UI (one page)
+### Connections page UI (one page)
 
-Route: `/dashboard/connectors` (link from dashboard “external HR integrations” card).
+Route: `/dashboard/connections` (link from dashboard Settings / “external HR integrations”).
 
 **Layout**
 
-1. Header: “Connectors” + short line: “Connect your company APIs and email so workflow nodes can run.”
-2. List of existing integrations (name, type badge, baseUrl/host masked, status, Edit / Disable / Delete).
-3. **Add connector** — choose type first (REST / SMTP / Webhook), then show **only that type’s fields** (space for every required field above).
+1. Header: “Connections” + short line: “Connect your company systems and email so workflow nodes can run.”
+2. List of existing connections (name, type badge, baseUrl/host masked, status, Edit / Disable / Delete).
+3. **Add connection** — choose type first (Custom REST / SMTP / Webhook), then show **only that type’s fields**.
 4. Secrets: password/API key inputs are write-only; edit form shows “•••••• leave blank to keep”.
-5. Optional **Test connection** button → server pings `baseUrl` or SMTP handshake; never returns decrypted secret.
+5. **Test Connection** button → `POST /api/integrations/:id/test` → `{ success, message }` only; never returns decrypted secret.
 
 Preserve existing teal / glass dashboard look; one job per section (list vs add form).
 
@@ -220,7 +221,7 @@ Worker:
   send mail From = config.from on Integration
 ```
 
-If `integrationId` missing on a node that requires one → `NodeExecution` FAILED with message: “Connect an Integration on the Connectors page and select it on this node.”
+If `integrationId` missing on a node that requires one → `NodeExecution` FAILED with message: “Connect a system on the Connections page and select it on this node.”
 
 ---
 
@@ -228,13 +229,14 @@ If `integrationId` missing on a node that requires one → `NodeExecution` FAILE
 
 - `GET/POST /api/integrations`
 - `GET/PATCH/DELETE /api/integrations/[id]`
+- `POST /api/integrations/[id]/test` → `{ success, message }` only
 - Session-guarded; encrypt on write; `CREDENTIAL_SELECT_SAFE` on read
 
 ### Phase 2b (same milestone or immediately after)
 
 In builder node properties panel:
 
-- If node type requires connector → Integration dropdown (filter by REST vs SMTP)
+- If node type requires connection → Connection dropdown (filter by REST vs SMTP vs WEBHOOK)
 - Fields for path / method / filter / email template
 - Persist `integrationId` + `config` via existing workflow PUT
 
@@ -243,10 +245,10 @@ In builder node properties panel:
 ## Run Now flow (unchanged summary)
 
 ```text
-Connectors first → bind nodes → Save
+Connections first → bind nodes → Save
 → POST /api/workflows/:id/run
 → Execution QUEUED + Redis { executionId }
-→ Worker claim RUNNING → engine → company API via connector
+→ Worker claim RUNNING → engine → company API via Connection
 → UI poll QUEUED → RUNNING → SUCCESS + NodeExecution logs
 ```
 
@@ -262,9 +264,10 @@ Connectors first → bind nodes → Save
 | 6 | Engine per matrix above |
 | 7 | Retry / stale / idempotency |
 | 8 | Wire Run Now UI off simulation |
+| Later | OAuth providers (Greenhouse, M365, Gmail) on same Connection model — no engine rewrite |
 
 ---
 
-## Demo definition of done (Connectors + Run)
+## Demo definition of done (Connections + Run)
 
-> Login → **Connectors**: add REST (baseUrl + API key) and SMTP → Low Attendance workflow → Get Attendance + Get Employee use REST connector + paths → Send Email uses SMTP → Save → Run Now → Queued → Running → Success → logs show API data / email step.
+> Login → **Connections**: add Custom REST (baseUrl + API key) and SMTP → Low Attendance workflow → Get Attendance + Get Employee use REST connection + paths → Send Email uses SMTP → Save → Run Now → Queued → Running → Success → logs show API data / email step.

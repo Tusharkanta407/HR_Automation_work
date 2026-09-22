@@ -4,10 +4,11 @@ const ALGO = "aes-256-gcm";
 const IV_LENGTH = 12;
 
 function getKey(): Buffer {
-  const secret = process.env.CREDENTIALS_SECRET;
+  const secret =
+    process.env.CREDENTIALS_SECRET || process.env.CREDENTIAL_ENCRYPTION_KEY;
   if (!secret || secret.length < 16) {
     throw new Error(
-      "CREDENTIALS_SECRET must be set (min 16 chars). Used to encrypt IntegrationCredential.encryptedData.",
+      "CREDENTIALS_SECRET (or CREDENTIAL_ENCRYPTION_KEY) must be set (min 16 chars). Used to encrypt IntegrationCredential.encryptedData.",
     );
   }
   // Derive a stable 32-byte key from the secret
@@ -55,3 +56,88 @@ export const CREDENTIAL_SELECT_SAFE = {
   createdAt: true,
   updatedAt: true,
 } as const;
+
+/** Safe Prisma include for Integration list/detail responses. */
+export const INTEGRATION_INCLUDE_SAFE = {
+  credentials: { select: CREDENTIAL_SELECT_SAFE },
+} as const;
+
+export type SafeCredentialDto = {
+  id: string;
+  integrationId: string;
+  type: string;
+  hasSecret: true;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SafeIntegrationDto = {
+  id: string;
+  name: string;
+  type: string;
+  provider: string;
+  baseUrl: string | null;
+  config: unknown;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  credentials: SafeCredentialDto[];
+};
+
+/**
+ * Map a DB Integration (+ safe credential rows) to a browser-safe DTO.
+ * Never includes encryptedData or plaintext secrets.
+ */
+export function toSafeIntegration(row: {
+  id: string;
+  name: string;
+  type: string;
+  provider: string;
+  baseUrl: string | null;
+  config: unknown;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  credentials?: Array<{
+    id: string;
+    integrationId: string;
+    type: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+}): SafeIntegrationDto {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    provider: row.provider,
+    baseUrl: row.baseUrl,
+    config: row.config,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    credentials: (row.credentials ?? []).map((c) => ({
+      id: c.id,
+      integrationId: c.integrationId,
+      type: c.type,
+      hasSecret: true as const,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    })),
+  };
+}
+
+/** Default provider slug for a V1 transport type. */
+export function defaultProviderForType(
+  type: "REST_API" | "SMTP" | "WEBHOOK" | string,
+): string {
+  switch (type) {
+    case "SMTP":
+      return "CUSTOM_SMTP";
+    case "WEBHOOK":
+      return "CUSTOM_WEBHOOK";
+    case "REST_API":
+    default:
+      return "CUSTOM_REST";
+  }
+}

@@ -155,6 +155,68 @@ export function getNodeEntry(type: NodeType): NodeCatalogEntry | undefined {
   return NODE_CATALOG.find((n) => n.type === type);
 }
 
+/** Which Connection (Integration) type a node needs, or null if none. */
+export type RequiredConnectionType = "REST_API" | "SMTP" | "WEBHOOK" | null;
+
+const REST_NODE_TYPES = new Set<NodeType>([
+  "GET_EMPLOYEES",
+  "GET_EMPLOYEE",
+  "GET_ATTENDANCE",
+  "GET_MONTHLY_ATTENDANCE",
+  "GET_LEAVE_RECORDS",
+  "GET_CANDIDATES",
+  "GET_CANDIDATE",
+  "GET_ASSESSMENT_RESULT",
+  "GET_INTERVIEWERS",
+  "GET_INTERVIEWER_AVAILABILITY",
+  "HTTP_REQUEST",
+  "CUSTOM_API",
+  "UPDATE_EMPLOYEE",
+  "UPDATE_CANDIDATE_STATUS",
+  "ASSIGN_INTERVIEWER",
+  "SCHEDULE_INTERVIEW",
+  "CREATE_EMPLOYEE",
+  "CREATE_ONBOARDING_TASK",
+]);
+
+export function requiredConnectionType(
+  nodeType: NodeType | string
+): RequiredConnectionType {
+  if (nodeType === "SEND_EMAIL") return "SMTP";
+  if (nodeType === "SEND_WEBHOOK") return "WEBHOOK";
+  if (REST_NODE_TYPES.has(nodeType as NodeType)) return "REST_API";
+  return null;
+}
+
+export function nodeRequiresConnection(nodeType: NodeType | string): boolean {
+  return requiredConnectionType(nodeType) !== null;
+}
+
+/** Sensible default path for HR_DATA / action nodes (overridable in node config). */
+export function defaultPathForNodeType(nodeType: NodeType | string): string {
+  const defaults: Record<string, string> = {
+    GET_EMPLOYEES: "/api/employees",
+    GET_EMPLOYEE: "/api/employees/{id}",
+    GET_ATTENDANCE: "/api/attendance",
+    GET_MONTHLY_ATTENDANCE: "/api/attendance/monthly",
+    GET_LEAVE_RECORDS: "/api/leave",
+    GET_CANDIDATES: "/api/candidates",
+    GET_CANDIDATE: "/api/candidates/{id}",
+    GET_ASSESSMENT_RESULT: "/api/assessments/{id}",
+    GET_INTERVIEWERS: "/api/interviewers",
+    GET_INTERVIEWER_AVAILABILITY: "/api/interviewers/availability",
+    UPDATE_EMPLOYEE: "/api/employees/{id}",
+    UPDATE_CANDIDATE_STATUS: "/api/candidates/{id}/status",
+    ASSIGN_INTERVIEWER: "/api/interviews/assign",
+    SCHEDULE_INTERVIEW: "/api/interviews",
+    CREATE_EMPLOYEE: "/api/employees",
+    CREATE_ONBOARDING_TASK: "/api/onboarding/tasks",
+    HTTP_REQUEST: "/",
+    CUSTOM_API: "/",
+  };
+  return defaults[nodeType] || "/";
+}
+
 // ── Workflow document types ─────────────────────────────────
 
 export type WorkflowNode = {
@@ -163,6 +225,7 @@ export type WorkflowNode = {
   position: { x: number; y: number };
   config?: Record<string, unknown>;
   status?: "needs_config" | "configured" | "running" | "failed";
+  integrationId?: string | null;
 };
 
 export type WorkflowEdge = {

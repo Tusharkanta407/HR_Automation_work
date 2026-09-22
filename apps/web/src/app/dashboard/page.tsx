@@ -884,29 +884,43 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Integrations Card */}
+              {/* Connections Card */}
               <div className="rounded-2xl border border-[rgba(0,29,61,0.08)] bg-white p-5 shadow-xs">
-                <h2 className="text-sm font-semibold text-[#001d3d] flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-[#14b8a6]" />
-                  Connected HR Systems
-                </h2>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-[#001d3d] flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-[#14b8a6]" />
+                    Connections
+                  </h2>
+                  <Link href="/dashboard/connections">
+                    <Button
+                      size="sm"
+                      className="h-8 rounded-xl bg-[#14b8a6] hover:bg-[#0d9488] text-white text-xs"
+                    >
+                      Manage connections
+                    </Button>
+                  </Link>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Connect Custom REST (ATS/HR), SMTP email, and webhooks once. Workflow nodes
+                  pick a connection — they never store API keys.
+                </p>
                 <div className="mt-3 divide-y divide-slate-100 text-xs">
                   {[
-                    { name: "Slack Notifications", desc: "Broadcast attendance alerts to #hr-leads channel", connected: false },
-                    { name: "Google Calendar", desc: "Automate technical interview scheduling with engineers", connected: false },
-                    { name: "BambooHR / Workday API", desc: "Sync real-time employee directories and PTO balances", connected: false },
-                    { name: "Greenhouse ATS", desc: "Receive webhook triggers when assessment tests pass", connected: false },
+                    { name: "Custom REST API", desc: "Base URL + API key / bearer for HR data nodes" },
+                    { name: "SMTP Email", desc: "Company mail server for Send Email" },
+                    { name: "Custom Webhook", desc: "Outgoing webhook destination" },
                   ].map((int, i) => (
                     <div key={i} className="py-3 flex items-center justify-between">
                       <div>
                         <p className="font-semibold text-slate-800">{int.name}</p>
                         <p className="text-slate-400">{int.desc}</p>
                       </div>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium ${
-                        int.connected ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-                      }`}>
-                        {int.connected ? "Connected" : "Not configured"}
-                      </span>
+                      <Link
+                        href="/dashboard/connections"
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-[#f0fdfa] text-[#0d9488] hover:underline"
+                      >
+                        Configure →
+                      </Link>
                     </div>
                   ))}
                 </div>

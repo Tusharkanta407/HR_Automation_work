@@ -53,6 +53,10 @@ export {
   encryptCredential,
   decryptCredential,
   CREDENTIAL_SELECT_SAFE,
+  INTEGRATION_INCLUDE_SAFE,
+  toSafeIntegration,
+  defaultProviderForType,
 } from "./credentials";
+export type { SafeCredentialDto, SafeIntegrationDto } from "./credentials";
 export type { SideEffectKeyParts } from "./idempotency";
 export { buildSideEffectKey } from "./idempotency";
