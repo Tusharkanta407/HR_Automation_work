@@ -82,15 +82,20 @@ export async function GET(req: NextRequest) {
     }
 
     const typeFilter = req.nextUrl.searchParams.get("type");
-    const where: { userId: string; type?: IntegrationType } = {
+    const providerFilter = req.nextUrl.searchParams.get("provider");
+    const where: { userId: string; type?: IntegrationType; provider?: string } = {
       userId: user.id,
     };
     if (
+      typeFilter === "OAUTH" ||
       typeFilter === "REST_API" ||
       typeFilter === "SMTP" ||
       typeFilter === "WEBHOOK"
     ) {
       where.type = typeFilter;
+    }
+    if (providerFilter) {
+      where.provider = providerFilter;
     }
 
     const rows = await prisma.integration.findMany({

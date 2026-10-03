@@ -5,10 +5,12 @@ const IV_LENGTH = 12;
 
 function getKey(): Buffer {
   const secret =
-    process.env.CREDENTIALS_SECRET || process.env.CREDENTIAL_ENCRYPTION_KEY;
+    process.env.CREDENTIALS_SECRET ||
+    process.env.CREDENTIAL_ENCRYPTION_KEY ||
+    process.env.NEXTAUTH_SECRET;
   if (!secret || secret.length < 16) {
     throw new Error(
-      "CREDENTIALS_SECRET (or CREDENTIAL_ENCRYPTION_KEY) must be set (min 16 chars). Used to encrypt IntegrationCredential.encryptedData.",
+      "CREDENTIALS_SECRET (or CREDENTIAL_ENCRYPTION_KEY or NEXTAUTH_SECRET) must be set (min 16 chars). Used to encrypt IntegrationCredential.encryptedData.",
     );
   }
   // Derive a stable 32-byte key from the secret

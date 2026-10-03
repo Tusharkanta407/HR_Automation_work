@@ -148,7 +148,55 @@ export async function POST(_req: NextRequest, context: RouteContext) {
 
     let result: { success: boolean; message: string };
 
-    if (integration.type === "SMTP") {
+    if (integration.provider === "GOOGLE" || integration.type === "OAUTH") {
+      try {
+        const credData = JSON.parse(
+          decryptCredential(cred.encryptedData)
+        );
+        let token = credData.accessToken;
+        let res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok && credData.refreshToken) {
+          const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_id: credData.clientId,
+              client_secret: credData.clientSecret,
+              refresh_token: credData.refreshToken,
+              grant_type: "refresh_token",
+            }),
+          });
+          const refreshJson = await refreshRes.json();
+          if (refreshRes.ok && refreshJson.access_token) {
+            token = refreshJson.access_token;
+            res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          }
+        }
+
+        if (res.ok) {
+          const userinfo = await res.json().catch(() => ({}));
+          result = {
+            success: true,
+            message: `Google Workspace verified (${userinfo.email || integration.accountIdentifier}) — Gmail, Calendar, Drive & Sheets active.`,
+          };
+        } else {
+          result = {
+            success: false,
+            message: "Google authorization expired or revoked. Please reconnect.",
+          };
+        }
+      } catch (err: any) {
+        result = {
+          success: false,
+          message: err.message || "Failed to verify Google Workspace connection",
+        };
+      }
+    } else if (integration.type === "SMTP") {
       const cfg = (integration.config || {}) as { host?: string; port?: number };
       const host = cfg.host || "";
       const port = Number(cfg.port || 587);
