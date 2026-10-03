@@ -18,7 +18,38 @@ import {
   X,
   Plug,
   ExternalLink,
+  Globe,
+  Sparkles,
+  Copy,
+  Check,
+  Send,
+  Radio,
+  Terminal,
+  KeyRound,
+  Loader2,
 } from "lucide-react";
+
+export const PRESET_ENDPOINTS = [
+  { group: "Employees", label: "GET /api/employees — All employees directory", method: "GET", path: "/api/employees" },
+  { group: "Employees", label: "GET /api/employees/{id} — Single employee profile", method: "GET", path: "/api/employees/EMP-101" },
+  { group: "Employees", label: "POST /api/employees — Provision new employee", method: "POST", path: "/api/employees", defaultBody: '{\n  "name": "Jane Doe",\n  "email": "jane.doe@example.com",\n  "department": "Engineering",\n  "position": "Software Engineer",\n  "salary": 115000,\n  "status": "ACTIVE"\n}' },
+  { group: "Employees", label: "PATCH /api/employees/{id} — Update employee", method: "PATCH", path: "/api/employees/EMP-101", defaultBody: '{\n  "position": "Staff Engineer",\n  "salary": 135000\n}' },
+  { group: "Attendance", label: "GET /api/attendance — List attendance logs", method: "GET", path: "/api/attendance" },
+  { group: "Attendance", label: "GET /api/attendance?belowThresholdOnly=true — Alert low attendance (<75%)", method: "GET", path: "/api/attendance?belowThresholdOnly=true" },
+  { group: "Attendance", label: "GET /api/attendance/monthly — Monthly attendance summary", method: "GET", path: "/api/attendance/monthly?period=2026-09" },
+  { group: "Leaves", label: "GET /api/leave — List leave records & requests", method: "GET", path: "/api/leave" },
+  { group: "Leaves", label: "GET /api/leave?status=PENDING — Pending leave requests", method: "GET", path: "/api/leave?status=PENDING" },
+  { group: "Candidates", label: "GET /api/candidates — Candidate pipeline", method: "GET", path: "/api/candidates" },
+  { group: "Candidates", label: "GET /api/candidates/{id} — Single candidate details", method: "GET", path: "/api/candidates/CAND-201" },
+  { group: "Candidates", label: "PATCH /api/candidates/{id}/status — Update candidate status/stage", method: "PATCH", path: "/api/candidates/CAND-201/status", defaultBody: '{\n  "stage": "OFFER",\n  "status": "ACTIVE"\n}' },
+  { group: "Assessments", label: "GET /api/assessments/{id} — Candidate assessment scores", method: "GET", path: "/api/assessments/ASM-301" },
+  { group: "Interviews", label: "GET /api/interviewers — List available interviewers", method: "GET", path: "/api/interviewers" },
+  { group: "Interviews", label: "GET /api/interviewers/availability — Check slot availability", method: "GET", path: "/api/interviewers/availability?interviewerId=INTV-401" },
+  { group: "Interviews", label: "POST /api/interviews — Schedule interview & Meet link", method: "POST", path: "/api/interviews", defaultBody: '{\n  "candidateId": "CAND-201",\n  "interviewerId": "INTV-401",\n  "scheduledAt": "2026-10-06T14:00:00Z",\n  "durationMinutes": 45\n}' },
+  { group: "Interviews", label: "POST /api/interviews/assign — Assign interviewer to candidate", method: "POST", path: "/api/interviews/assign", defaultBody: '{\n  "candidateId": "CAND-202",\n  "interviewerId": "INTV-402",\n  "date": "2026-10-07T10:00:00Z"\n}' },
+  { group: "Onboarding", label: "POST /api/onboarding/tasks — Create onboarding checklist task", method: "POST", path: "/api/onboarding/tasks", defaultBody: '{\n  "employeeId": "EMP-101",\n  "title": "Complete Security Compliance Training",\n  "description": "Set up MFA and workstation keys",\n  "dueDate": "2026-10-10T18:00:00Z"\n}' },
+  { group: "Webhooks / Echo", label: "ALL /api/http-request — Universal echo test endpoint", method: "POST", path: "/api/http-request", defaultBody: '{\n  "test": true,\n  "action": "webhook_verification"\n}' },
+];
 
 type SafeIntegration = {
   id: string;
@@ -29,6 +60,7 @@ type SafeIntegration = {
 };
 
 type NodeConfigDialogProps = {
+  workflowId?: string;
   node: Node | null;
   open: boolean;
   onClose: () => void;
@@ -48,6 +80,7 @@ const HR_VARIABLES = [
 ];
 
 export default function NodeConfigDialog({
+  workflowId,
   node,
   open,
   onClose,
@@ -62,12 +95,21 @@ export default function NodeConfigDialog({
   const [activeField, setActiveField] = useState<string>("message");
   const [varDropdownOpen, setVarDropdownOpen] = useState(false);
 
+  // Webhook-specific state
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [testingTrigger, setTestingTrigger] = useState(false);
+  const [triggerTestResult, setTriggerTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testingDispatch, setTestingDispatch] = useState(false);
+  const [dispatchTestResult, setDispatchTestResult] = useState<any | null>(null);
+
   useEffect(() => {
     if (node) {
       const data = node.data as HRNodeData;
       setLabel(data.label || "");
       setConfig(data.config || {});
       setIntegrationId(data.integrationId || "");
+      setTriggerTestResult(null);
+      setDispatchTestResult(null);
     }
   }, [node]);
 
@@ -114,7 +156,100 @@ export default function NodeConfigDialog({
     connType === "REST_API" ||
     nodeData.nodeType === "CUSTOM_API" ||
     nodeData.nodeType === "HTTP_REQUEST";
-  const isWebhookAction = connType === "WEBHOOK";
+  const isWebhookTrigger = nodeData.nodeType === "WEBHOOK";
+  const isSendWebhook = nodeData.nodeType === "SEND_WEBHOOK" || connType === "WEBHOOK";
+
+  const webhookUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/api/webhooks/${workflowId || "WORKFLOW_ID"}`
+    : `/api/webhooks/${workflowId || "WORKFLOW_ID"}`;
+
+  const handleCopyWebhookUrl = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(webhookUrl);
+      setCopiedWebhook(true);
+      setTimeout(() => setCopiedWebhook(false), 2000);
+    }
+  };
+
+  const handleTestWebhookTrigger = async () => {
+    if (!workflowId) {
+      setTriggerTestResult({ ok: false, message: "Save workflow first to get a valid workflowId" });
+      return;
+    }
+    setTestingTrigger(true);
+    setTriggerTestResult(null);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (config.secret) {
+        headers["x-webhook-secret"] = config.secret;
+      }
+      const res = await fetch(`/api/webhooks/${workflowId}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          test: true,
+          event: "webhook_test_event",
+          timestamp: new Date().toISOString(),
+          sample_candidate: {
+            name: "Alex Rivera",
+            email: "alex.rivera@example.com",
+            department: "Engineering",
+          },
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTriggerTestResult({
+          ok: true,
+          message: `Execution #${data.executionId?.slice(-6) || "OK"} queued successfully!`,
+        });
+      } else {
+        setTriggerTestResult({ ok: false, message: data.error || `HTTP ${res.status}` });
+      }
+    } catch (err: any) {
+      setTriggerTestResult({ ok: false, message: err.message || "Failed to call webhook endpoint" });
+    } finally {
+      setTestingTrigger(false);
+    }
+  };
+
+  const handleTestWebhookDispatch = async () => {
+    if (!config.url) return;
+    setTestingDispatch(true);
+    setDispatchTestResult(null);
+    try {
+      let parsedHeaders = {};
+      if (config.headersJson) {
+        try {
+          parsedHeaders = JSON.parse(config.headersJson);
+        } catch {}
+      }
+      let parsedBody: unknown = undefined;
+      if (config.bodyJson) {
+        try {
+          parsedBody = JSON.parse(config.bodyJson);
+        } catch {
+          parsedBody = config.bodyJson;
+        }
+      }
+      const res = await fetch("/api/webhooks/test-dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: config.url,
+          method: config.method || "POST",
+          headers: parsedHeaders,
+          body: parsedBody || { test: true, triggeredAt: new Date().toISOString() },
+        }),
+      });
+      const data = await res.json();
+      setDispatchTestResult(data);
+    } catch (err: any) {
+      setDispatchTestResult({ ok: false, error: err.message || "Dispatch error" });
+    } finally {
+      setTestingDispatch(false);
+    }
+  };
 
   const handleInsertVariable = (varText: string) => {
     setConfig((prev) => {
@@ -146,6 +281,10 @@ export default function NodeConfigDialog({
         : "Each Employee";
     } else if (isRestAction && config.path) {
       summaryText = `${config.method || "GET"} ${config.path}`;
+    } else if (isWebhookTrigger) {
+      summaryText = config.secret ? "POST /api/webhooks/… (Secret Protected)" : "POST /api/webhooks/…";
+    } else if (isSendWebhook && config.url) {
+      summaryText = `${config.method || "POST"} ${config.url.length > 28 ? config.url.slice(0, 28) + "…" : config.url}`;
     }
 
     const nextConfig = { ...config };
@@ -273,6 +412,49 @@ export default function NodeConfigDialog({
 
           {isRestAction && (
             <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200 space-y-3">
+              {/* Endpoint Preset Picker */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-semibold text-[#001d3d] uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-[#0d9488]" /> Quick Endpoint Preset
+                  </label>
+                  <a
+                    href="https://hr-automation-work.onrender.com/swagger/index.html"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#0d9488] hover:underline"
+                  >
+                    View Swagger <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const preset = PRESET_ENDPOINTS.find((p) => p.path === e.target.value);
+                    if (preset) {
+                      setConfig({
+                        ...config,
+                        method: preset.method,
+                        path: preset.path,
+                        ...(preset.defaultBody ? { bodyJson: preset.defaultBody } : {}),
+                      });
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-[#001d3d] shadow-xs"
+                >
+                  <option value="">⚡ Select standard HR endpoint preset...</option>
+                  {Array.from(new Set(PRESET_ENDPOINTS.map((p) => p.group))).map((group) => (
+                    <optgroup key={group} label={group}>
+                      {PRESET_ENDPOINTS.filter((p) => p.group === group).map((p) => (
+                        <option key={p.path} value={p.path}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-[10px] font-medium text-slate-500">
@@ -283,7 +465,7 @@ export default function NodeConfigDialog({
                     onChange={(e) =>
                       setConfig({ ...config, method: e.target.value })
                     }
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold"
                   >
                     <option value="GET">GET</option>
                     <option value="POST">POST</option>
@@ -294,7 +476,7 @@ export default function NodeConfigDialog({
                 </div>
                 <div className="col-span-2">
                   <label className="text-[10px] font-medium text-slate-500">
-                    Path (appended to connection base URL)
+                    Endpoint Path
                   </label>
                   <input
                     type="text"
@@ -304,14 +486,30 @@ export default function NodeConfigDialog({
                     onChange={(e) =>
                       setConfig({ ...config, path: e.target.value })
                     }
-                    placeholder="/api/attendance/monthly"
+                    placeholder="/api/employees"
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono"
                   />
                 </div>
               </div>
+
+              {(config.method === "POST" || config.method === "PUT" || config.method === "PATCH") && (
+                <div>
+                  <label className="text-[10px] font-medium text-slate-500 block mb-1">
+                    JSON Request Body (supports <code className="text-[9px]">{"{{variables}}"}</code>)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={config.bodyJson || ""}
+                    onChange={(e) => setConfig({ ...config, bodyJson: e.target.value })}
+                    placeholder='{ "key": "value" }'
+                    className="w-full rounded-lg border border-slate-200 bg-white p-2 font-mono text-[11px] leading-tight focus:border-[#0d9488] focus:outline-hidden"
+                  />
+                </div>
+              )}
+
               <p className="text-[11px] text-slate-400">
                 Worker calls:{" "}
-                <code className="text-[10px]">
+                <code className="text-[10px] text-[#001d3d] bg-slate-100 px-1 py-0.5 rounded font-mono">
                   {"{baseUrl}"}
                   {config.path || defaultPathForNodeType(nodeData.nodeType)}
                 </code>
@@ -319,10 +517,198 @@ export default function NodeConfigDialog({
             </div>
           )}
 
-          {isWebhookAction && (
-            <p className="text-[11px] text-slate-500 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
-              Target URL comes from the selected Webhook connection.
-            </p>
+          {isWebhookTrigger && (
+            <div className="rounded-xl bg-slate-50 p-4 border border-slate-200 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#001d3d] flex items-center gap-1.5">
+                  <Radio className="h-4 w-4 text-[#0d9488]" />
+                  Inbound Webhook Trigger
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  POST Endpoint
+                </span>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                  Unique Webhook URL
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    readOnly
+                    value={webhookUrl}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono text-slate-700 select-all"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCopyWebhookUrl}
+                    className="h-8 px-2.5 rounded-lg border-slate-200 text-xs font-semibold text-[#001d3d] hover:bg-slate-100"
+                  >
+                    {copiedWebhook ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span className="ml-1">{copiedWebhook ? "Copied" : "Copy"}</span>
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  External services (ATS, forms, GitHub) can send HTTP POST to this URL to trigger this workflow.
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    <KeyRound className="h-3 w-3 text-slate-400" />
+                    Secret Token (Optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConfig({ ...config, secret: `whsec_${Math.random().toString(36).substring(2, 12)}` })
+                    }
+                    className="text-[10px] text-[#0d9488] font-medium hover:underline"
+                  >
+                    Generate Random Secret
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={config.secret || ""}
+                  onChange={(e) => setConfig({ ...config, secret: e.target.value })}
+                  placeholder="e.g. whsec_abc123 (passed via x-webhook-secret header)"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono text-slate-700"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                    <Terminal className="h-3 w-3" /> Test Webhook Ingestion
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={testingTrigger}
+                    onClick={handleTestWebhookTrigger}
+                    className="h-7 px-3 rounded-lg bg-[#001d3d] hover:bg-[#002855] text-white text-[11px] font-semibold"
+                  >
+                    {testingTrigger ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                    Send Test Event
+                  </Button>
+                </div>
+
+                {triggerTestResult && (
+                  <div
+                    className={`rounded-lg p-2.5 text-xs font-mono border ${
+                      triggerTestResult.ok
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                        : "bg-rose-50 border-rose-200 text-rose-800"
+                    }`}
+                  >
+                    <div className="font-semibold mb-0.5">
+                      {triggerTestResult.ok ? "✓ 202 Accepted — Execution Queued" : "✕ Failed to trigger"}
+                    </div>
+                    <div className="text-[10px] opacity-90 truncate">{triggerTestResult.message}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isSendWebhook && (
+            <div className="rounded-xl bg-slate-50 p-4 border border-slate-200 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#001d3d] flex items-center gap-1.5">
+                  <Send className="h-4 w-4 text-[#0d9488]" />
+                  Outbound Webhook Dispatch
+                </span>
+                <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                  Action Node
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] font-medium text-slate-500">Method</label>
+                  <select
+                    value={config.method || "POST"}
+                    onChange={(e) => setConfig({ ...config, method: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold"
+                  >
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[10px] font-medium text-slate-500">Destination URL</label>
+                  <input
+                    type="url"
+                    value={config.url || ""}
+                    onChange={(e) => setConfig({ ...config, url: e.target.value })}
+                    placeholder="https://hooks.slack.com/services/..."
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-medium text-slate-500 block mb-1">
+                  JSON Payload (supports <code className="text-[9px]">{"{{variables}}"}</code>)
+                </label>
+                <textarea
+                  rows={3}
+                  value={config.bodyJson || ""}
+                  onChange={(e) => setConfig({ ...config, bodyJson: e.target.value })}
+                  placeholder='{\n  "event": "candidate_status_changed",\n  "candidate_name": "{{candidate.name}}"\n}'
+                  className="w-full rounded-lg border border-slate-200 bg-white p-2 font-mono text-[11px] leading-tight focus:border-[#0d9488] focus:outline-hidden"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold text-slate-600">Test Dispatch</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={testingDispatch || !config.url}
+                    onClick={handleTestWebhookDispatch}
+                    className="h-7 px-3 rounded-lg bg-[#001d3d] hover:bg-[#002855] text-white text-[11px] font-semibold disabled:opacity-50"
+                  >
+                    {testingDispatch ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                    Send Test Webhook
+                  </Button>
+                </div>
+
+                {dispatchTestResult && (
+                  <div
+                    className={`rounded-lg p-2.5 text-xs font-mono border ${
+                      dispatchTestResult.ok
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                        : "bg-rose-50 border-rose-200 text-rose-800"
+                    }`}
+                  >
+                    <div className="font-semibold mb-0.5">
+                      {dispatchTestResult.ok
+                        ? `✓ ${dispatchTestResult.status} ${dispatchTestResult.statusText || "OK"}`
+                        : "✕ Dispatch Failed"}
+                      <span className="text-[10px] opacity-75 font-normal ml-2">
+                        ({dispatchTestResult.durationMs}ms)
+                      </span>
+                    </div>
+                    {dispatchTestResult.body && (
+                      <div className="text-[10px] opacity-90 truncate max-h-12 overflow-hidden">
+                        {dispatchTestResult.body}
+                      </div>
+                    )}
+                    {dispatchTestResult.error && (
+                      <div className="text-[10px] text-rose-700">{dispatchTestResult.error}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {isCondition && (

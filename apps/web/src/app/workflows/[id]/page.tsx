@@ -219,6 +219,7 @@ export default function WorkflowBuilderPage() {
       <ReactFlowProvider>
         <FlowCanvas
           key={id}
+          workflowId={id}
           initialNodes={initialNodes}
           initialEdges={initialEdges}
           title={workflowName}

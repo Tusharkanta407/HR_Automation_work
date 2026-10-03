@@ -900,13 +900,38 @@ export default function ConnectionsPage() {
                 {selectedType === "REST_API" && (
                   <>
                     <div>
-                      <label className="text-xs font-semibold text-slate-700">Base URL</label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-semibold text-slate-700">Base URL</label>
+                        <span className="text-[10px] text-slate-400">Quick presets:</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!name) setName("HR Domain API (Render)");
+                            setBaseUrl("https://hr-automation-work.onrender.com");
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-[#f0fdfa] border border-[#14b8a6]/30 text-[11px] font-semibold text-[#0d9488] hover:bg-[#ccfbf1] transition"
+                        >
+                          ⚡ Render Live API (Auto-fill)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!name) setName("HR Mock API (Localhost)");
+                            setBaseUrl("http://localhost:5000");
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-200 transition"
+                        >
+                          💻 Localhost (:5000)
+                        </button>
+                      </div>
                       <input
                         type="url"
                         value={baseUrl}
                         onChange={(e) => setBaseUrl(e.target.value)}
-                        placeholder="https://api.company.com"
-                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
+                        placeholder="https://hr-automation-work.onrender.com"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
                       />
                     </div>
                     <div>

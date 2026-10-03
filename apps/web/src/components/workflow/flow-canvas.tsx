@@ -30,6 +30,7 @@ import { Copy, Settings2, Trash2 } from "lucide-react";
 const nodeTypes = { hrNode: HRCustomNode, stickyNote: StickyNoteNode };
 
 type FlowCanvasProps = {
+  workflowId?: string;
   initialNodes: Node[];
   initialEdges: Edge[];
   title: string;
@@ -40,6 +41,7 @@ type FlowCanvasProps = {
 };
 
 export default function FlowCanvas({
+  workflowId,
   initialNodes,
   initialEdges,
   title,
@@ -565,6 +567,7 @@ export default function FlowCanvas({
       <NodeConfigDialog
         open={!!selectedNode}
         node={selectedNode}
+        workflowId={workflowId}
         onClose={() => setSelectedNode(null)}
         onSave={handleSaveNodeConfig}
         onDelete={handleDeleteNode}
