@@ -1,0 +1,10 @@
+{
+  "name": "hr-api",
+  "version": "1.0.0",
+  "description": "Mock HR Domain REST API for HR Automation platform",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs"
+  }
+}
