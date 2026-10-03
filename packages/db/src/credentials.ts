@@ -53,6 +53,8 @@ export const CREDENTIAL_SELECT_SAFE = {
   id: true,
   integrationId: true,
   type: true,
+  scopes: true,
+  expiresAt: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -66,6 +68,8 @@ export type SafeCredentialDto = {
   id: string;
   integrationId: string;
   type: string;
+  scopes: string[];
+  expiresAt: string | null;
   hasSecret: true;
   createdAt: string;
   updatedAt: string;
@@ -76,8 +80,10 @@ export type SafeIntegrationDto = {
   name: string;
   type: string;
   provider: string;
+  accountIdentifier: string | null;
   baseUrl: string | null;
   config: unknown;
+  metadata: unknown;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -93,8 +99,10 @@ export function toSafeIntegration(row: {
   name: string;
   type: string;
   provider: string;
+  accountIdentifier?: string | null;
   baseUrl: string | null;
   config: unknown;
+  metadata?: unknown;
   status: string;
   createdAt: Date;
   updatedAt: Date;
@@ -102,6 +110,8 @@ export function toSafeIntegration(row: {
     id: string;
     integrationId: string;
     type: string;
+    scopes?: string[];
+    expiresAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }>;
@@ -111,8 +121,10 @@ export function toSafeIntegration(row: {
     name: row.name,
     type: row.type,
     provider: row.provider,
+    accountIdentifier: row.accountIdentifier ?? null,
     baseUrl: row.baseUrl,
     config: row.config,
+    metadata: row.metadata ?? {},
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -120,6 +132,8 @@ export function toSafeIntegration(row: {
       id: c.id,
       integrationId: c.integrationId,
       type: c.type,
+      scopes: c.scopes ?? [],
+      expiresAt: c.expiresAt ? c.expiresAt.toISOString() : null,
       hasSecret: true as const,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
@@ -127,11 +141,13 @@ export function toSafeIntegration(row: {
   };
 }
 
-/** Default provider slug for a V1 transport type. */
+/** Default provider slug for a transport type. */
 export function defaultProviderForType(
-  type: "REST_API" | "SMTP" | "WEBHOOK" | string,
+  type: "OAUTH" | "REST_API" | "SMTP" | "WEBHOOK" | string,
 ): string {
   switch (type) {
+    case "OAUTH":
+      return "GOOGLE";
     case "SMTP":
       return "CUSTOM_SMTP";
     case "WEBHOOK":

@@ -25,6 +25,7 @@ enum WorkflowVersionStatus {
 }
 
 enum IntegrationType {
+  OAUTH
   REST_API
   SMTP
   WEBHOOK
@@ -37,6 +38,7 @@ enum IntegrationStatus {
 }
 
 enum CredentialType {
+  OAUTH2
   API_KEY
   BASIC
   BEARER
@@ -231,17 +233,19 @@ model WorkflowTrigger {
 // ─── Integrations (UI-configured company APIs) ───────────────────────────────
 
 model Integration {
-  id     String            @id @default(cuid())
-  userId String
-  name   String
-  type   IntegrationType
-  /// Extensible provider slug for future OAuth apps. V1: CUSTOM_REST | CUSTOM_SMTP | CUSTOM_WEBHOOK
-  provider  String            @default("CUSTOM_REST")
-  baseUrl   String?
-  config    Json              @default("{}")
-  status    IntegrationStatus @default(ACTIVE)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id                String            @id @default(cuid())
+  userId            String
+  name              String
+  type              IntegrationType
+  /// Extensible provider slug: GOOGLE | MICROSOFT | CUSTOM_REST | CUSTOM_SMTP | CUSTOM_WEBHOOK
+  provider          String            @default("CUSTOM_REST")
+  accountIdentifier String?
+  baseUrl           String?
+  config            Json              @default("{}")
+  metadata          Json              @default("{}")
+  status            IntegrationStatus @default(ACTIVE)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   user        User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   credentials IntegrationCredential[]
@@ -249,6 +253,7 @@ model Integration {
 
   @@index([userId])
   @@index([userId, type])
+  @@index([userId, provider])
 }
 
 model IntegrationCredential {
@@ -257,6 +262,8 @@ model IntegrationCredential {
   type          CredentialType
   /// AES-GCM ciphertext (base64). NEVER return decrypted to the browser.
   encryptedData String         @db.Text
+  expiresAt     DateTime?
+  scopes        String[]       @default([])
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 

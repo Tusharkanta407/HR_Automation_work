@@ -1,273 +1,287 @@
 ---
 name: Backend Phases 1-8
-overview: "Phase 1 done. Phase 2 = Connection Management (Custom REST / SMTP / Webhook + Test Connection + encrypted credentials). Then Run Now → QUEUED → Redis → Worker → engine uses node.integrationId. No mock .NET. V1 custom only; OAuth ATS/Email providers later on same model."
+overview: "Unified Account-Level Connection Architecture (Google Workspace: Gmail + Calendar + Drive via OAuth 2.0; Custom REST for HR/ATS; Webhooks; legacy SMTP fallback). Next.js control plane enqueues execution; Worker claims QUEUED -> RUNNING in Neon; Engine executes using provider adapters (Google REST APIs & Custom HR API) without hardcoded mock endpoints."
 todos:
   - id: p1-prisma
     content: "PHASE 1: Prisma + Neon — DONE"
     status: completed
+  - id: p2-schema-oauth
+    content: "PHASE 2A: Schema update for Unified Account OAuth (Integration.accountIdentifier, Credential.scopes/expiresAt, CredentialType.OAUTH2)"
+    status: pending
+  - id: p2-google-oauth
+    content: "PHASE 2A: Google Workspace OAuth flow (/api/integrations/google/auth & callback) + offline refresh token encryption"
+    status: pending
+  - id: p2-google-adapter
+    content: "PHASE 2A: Google Workspace Adapter (Gmail send/draft, Calendar events, Drive fetch document)"
+    status: pending
   - id: p2-connectors-ui
-    content: "PHASE 2: Connection Management — Connections page (Custom REST/SMTP/Webhook) + Integrations CRUD + Test Connection"
+    content: "PHASE 2B: Connections UI — Google Workspace card (badges, test, disconnect) + Custom REST + Webhooks"
     status: completed
   - id: p2b-node-picker
-    content: "PHASE 2b: Builder node settings — pick Connection + path/method/email (not secrets on node)"
+    content: "PHASE 2C: Builder node settings — pick Connection (Google Workspace vs Custom REST) + action/path"
     status: completed
   - id: p3-workflow-crud
     content: "PHASE 3: Finish workflow CRUD / publish + save integrationId on nodes"
-    status: pending
+    status: completed
   - id: p4-run-queue
     content: "PHASE 4: POST run → Execution QUEUED + BullMQ"
     status: pending
   - id: p5-worker
-    content: "PHASE 5: Worker claim + load graph + Integration secrets"
+    content: "PHASE 5: Worker claim + load graph + decrypt Integration secrets"
     status: pending
   - id: p6-engine
-    content: "PHASE 6: Engine uses connector per node type"
+    content: "PHASE 6: Engine execution with provider adapters (Google Workspace API + Custom REST)"
     status: pending
   - id: p7-reliability
     content: "PHASE 7: Retry / stale recovery / idempotency"
     status: pending
   - id: p8-wire-ui
-    content: "PHASE 8: Wire Run Now status + logs"
+    content: "PHASE 8: Wire Run Now status + logs off simulation"
     status: pending
 isProject: false
 ---
 
-# Backend roadmap + Connection Management
+# Backend Roadmap: Unified Account Connection & Execution Engine
 
-## Locked decisions
+## 1. Core Architectural Decisions (Locked)
 
-- Next.js **does not** execute workflows (enqueue only).
-- **Connections page** (product copy) = where HR authorizes external systems once. DB/API name remains `Integration`.
-- **Node settings** = where HR picks which Connection + path/params for that step.
-- Engine uses `Integration.baseUrl` + decrypted credential + `node.config` — no hardcoded mock `.NET`.
-- **V1 providers only:** Custom REST, SMTP, Webhook. Schema is provider-extensible (`provider` field) for later Greenhouse / M365 / Gmail OAuth **without rewriting the engine**.
+1. **Unified Account-Level Connections (No Fragmented Google Apps):**
+   - We do **NOT** create separate OAuth credentials/connections for Gmail, Calendar, and Drive.
+   - The user connects **one Google Workspace account** (e.g. `hr@company.com`).
+   - The connection holds granted scopes (capabilities) for **Gmail**, **Calendar**, and **Drive**.
 
----
+2. **No SMTP Needed for Google Workspace:**
+   - Google connections use the direct **Gmail REST API** (`https://gmail.googleapis.com`) with OAuth 2.0 bearer tokens.
+   - **Why No SMTP?** No passwords to store, 2FA never breaks, cloud firewalls/ports (25/465/587) are not blocked, and it allows **safe draft-first mode** and reading candidate replies.
+   - SMTP remains strictly an optional fallback for non-Google/custom legacy servers or transactional bulk mail (SendGrid/Amazon SES).
 
-## Where you are now
-
-| Area | Status |
-|------|--------|
-| UI + React Flow + NODE_CATALOG | Done ([`workflow.ts`](apps/web/src/lib/workflow.ts)) |
-| Phase 1 Prisma/Neon | Done |
-| `/api/workflows` CRUD | Partially done |
-| `/api/integrations` + Connections page | Done |
-| `/api/workflows/[id]/run` + worker | Not built |
+3. **Decoupled Responsibilities:**
+   - **Connections Page** (`/dashboard/connections`) = Authorize external systems once (stores account identifier, base URL, encrypted OAuth refresh token or API keys).
+   - **Node Settings** in Builder = Pick which Connection to use (`integrationId`) + select Action and path/parameters. No secrets are ever stored on nodes.
+   - **Control Plane Only in Next.js:** Next.js never runs nodes; it only inserts `Execution (QUEUED)` and enqueues `{ executionId }` to BullMQ/Redis.
+   - **Worker + Engine:** Claims execution atomically in Neon, decrypts credentials, executes provider adapters, and logs results.
 
 ---
 
-## PHASE 2 — Connection Management (design freeze)
-
-### Split of responsibility
+## 2. System Architecture Diagram
 
 ```text
-CONNECTIONS PAGE (once per company system)
-  → name, type, baseUrl / host, auth secrets
-  → saved as Integration + IntegrationCredential
-
-BUILDER NODE SETTINGS (per node)
-  → dropdown: which Connection (Integration)?
-  → method, path, query, email template, etc. in node.config
-  → saves WorkflowNode.integrationId + config JSON
+                    YOUR PLATFORM
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+        CONNECTIONS             WORKFLOWS
+              │                     │
+       ┌──────┼──────┐              │
+       ↓      ↓      ↓              ↓
+    Google  Microsoft  Custom     Nodes
+       │      │       REST         │
+       │      │        │           │
+       ├──────┤        │      integrationId
+       │      │        │           │
+     Gmail  Calendar   HR API       │
+     Drive    Teams    (ATS)        │
+       │      │        │           │
+       └──────┴────────┴───────────┘
+                         │
+                       Worker
+                         │
+                  Workflow Engine
+                         │
+                    Redis/BullMQ
 ```
 
-```mermaid
-flowchart LR
-  ConnectionsPage["Connections page"] --> Integration
-  Integration --> Credential["encrypted credential"]
-  NodeSettings["Node settings"] -->|integrationId| Integration
-  NodeSettings -->|config path method| NodeConfig["node.config"]
-  Engine -->|"baseUrl + auth + path"| CompanyAPI["Company API / SMTP"]
+---
+
+## 3. Database Model Evolution (`packages/db/prisma/schema.prisma`)
+
+```prisma
+enum IntegrationType {
+  OAUTH          // Unified OAuth (Google Workspace, Microsoft 365)
+  REST_API       // Custom HR System / Internal API
+  SMTP           // Legacy SMTP fallback
+  WEBHOOK        // Webhook destinations
+}
+
+enum CredentialType {
+  OAUTH2         // Refresh token + client credentials
+  API_KEY
+  BEARER
+  BASIC
+  SMTP
+  CUSTOM_JSON
+}
+
+model Integration {
+  id                String            @id @default(cuid())
+  userId            String
+  name              String            // e.g. "HR Google Workspace"
+  type              IntegrationType   @default(OAUTH)
+  provider          String            // "GOOGLE" | "MICROSOFT" | "CUSTOM_REST"
+  accountIdentifier String?           // e.g. "hr@company.com"
+  baseUrl           String?           // For REST APIs or specific service host
+  config            Json              @default("{}") // User configuration & default options
+  metadata          Json              @default("{}") // Avatar, domain, user info
+  status            IntegrationStatus @default(ACTIVE)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  user              User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentials       IntegrationCredential[]
+  nodes             WorkflowNode[]
+
+  @@index([userId])
+  @@index([userId, provider])
+}
+
+model IntegrationCredential {
+  id            String         @id @default(cuid())
+  integrationId String
+  type          CredentialType
+  /// AES-256-GCM ciphertext (base64) of { refreshToken, clientId, clientSecret }
+  encryptedData String         @db.Text
+  expiresAt     DateTime?
+  scopes        String[]       @default([]) // e.g. ["gmail.send", "calendar.events", "drive.readonly"]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  integration   Integration    @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId])
+}
 ```
 
-**Rule:** Secrets and base URL live on the **Connection**. Paths and business params live on the **node**. Never put API keys in node config.
+---
+
+## 4. Google Workspace Scopes & Capabilities
+
+When the user clicks **"Connect Google Workspace"**, Next.js initiates OAuth with `access_type=offline&prompt=consent`:
+
+| Capability | Scopes Requested | What It Enables in Workflows |
+| :--- | :--- | :--- |
+| **Account Info** | `openid`, `email`, `profile` | Populates `accountIdentifier` (`hr@company.com`) and avatar |
+| **Gmail** | `https://www.googleapis.com/auth/gmail.send`<br/>`https://www.googleapis.com/auth/gmail.compose`<br/>`https://www.googleapis.com/auth/gmail.readonly` | • Send email to candidate/employee<br/>• Create email draft (safe review mode)<br/>• Read/search candidate replies |
+| **Calendar** | `https://www.googleapis.com/auth/calendar.events`<br/>`https://www.googleapis.com/auth/calendar.readonly` | • Schedule interview events<br/>• Check interviewer availability<br/>• Send calendar invites with Google Meet |
+| **Drive** | `https://www.googleapis.com/auth/drive.readonly` | • Fetch candidate resumes<br/>• Download company onboarding policy PDFs<br/>• Read data sheets |
 
 ---
 
-### Connector types on the UI (three cards / add forms)
+## 5. Connections Page Layout (`/dashboard/connections`)
 
-#### 1. REST_API — “Company HR API”
-
-Use for almost all HR_DATA + HTTP actions.
-
-| Field on Connectors page | Required | Stored as |
-|--------------------------|----------|-----------|
-| Display name | yes | `Integration.name` |
-| Base URL | yes | `Integration.baseUrl` e.g. `https://hr.company.com` |
-| Auth type | yes | `CredentialType`: `API_KEY` \| `BEARER` \| `BASIC` \| `CUSTOM_JSON` |
-| API key / Bearer token / user+password | yes | `encryptedData` |
-| Optional default headers JSON | no | `Integration.config.headers` |
-| Status | — | ACTIVE / DISABLED |
-
-**Not on Connectors page:** `/api/attendance/monthly` — that is node `config.path`.
-
-#### 2. SMTP — “Email / notifications”
-
-Use for `SEND_EMAIL`.
-
-| Field | Required | Stored as |
-|-------|----------|-----------|
-| Display name | yes | name |
-| Host | yes | `config.host` or baseUrl-style |
-| Port | yes | `config.port` |
-| Secure (TLS) | yes | `config.secure` |
-| Username | yes | credential |
-| Password / app password | yes | encrypted |
-| From address | yes | `config.from` |
-
-#### 3. WEBHOOK — “Outgoing webhook destination” (V1 light)
-
-Use for `SEND_WEBHOOK` if not using a generic REST connector.
-
-| Field | Required | Stored as |
-|-------|----------|-----------|
-| Display name | yes | name |
-| Target URL | yes | `baseUrl` (full URL allowed) |
-| Optional secret / header | no | credential / config |
-
-Incoming trigger webhooks stay on `WorkflowTrigger.config` (later) — not this Connectors form.
-
----
-
-### Node → connector matrix (every catalog type)
-
-From [`NODE_CATALOG`](apps/web/src/lib/workflow.ts):
-
-#### Needs REST_API connector (+ path in node config)
-
-| Node type | Typical path (node.config) | Extra node fields |
-|-----------|----------------------------|-------------------|
-| `GET_EMPLOYEES` | `/api/employees` | — |
-| `GET_EMPLOYEE` | `/api/employees/{id}` | employeeId / template |
-| `GET_ATTENDANCE` | `/api/attendance` | query period |
-| `GET_MONTHLY_ATTENDANCE` | `/api/attendance/monthly` | period |
-| `GET_LEAVE_RECORDS` | `/api/leave` | — |
-| `GET_CANDIDATES` | `/api/candidates` | — |
-| `GET_CANDIDATE` | `/api/candidates/{id}` | candidateId |
-| `GET_ASSESSMENT_RESULT` | `/api/assessments/{id}` | assessmentId |
-| `GET_INTERVIEWERS` | `/api/interviewers` | — |
-| `GET_INTERVIEWER_AVAILABILITY` | `/api/interviewers/availability` | interviewerId |
-| `HTTP_REQUEST` | user-defined path | method, body |
-| `UPDATE_EMPLOYEE` | `/api/employees/{id}` | PATCH body map |
-| `UPDATE_CANDIDATE_STATUS` | `/api/candidates/{id}/status` | status |
-| `ASSIGN_INTERVIEWER` | `/api/interviews/assign` | body |
-| `SCHEDULE_INTERVIEW` | `/api/interviews` | body |
-| `CREATE_EMPLOYEE` | `/api/employees` | body |
-| `CREATE_ONBOARDING_TASK` | `/api/onboarding/tasks` | body |
-
-One company can use **one** REST connector for all of these (same `baseUrl`); each node only changes `path` / method.
-
-#### Needs SMTP connector
-
-| Node type | Node.config (not on Connectors) |
-|-----------|----------------------------------|
-| `SEND_EMAIL` | `to`, `subject`, `body` (templates like `{{employee.email}}`) |
-
-#### Needs REST or WEBHOOK connector
-
-| Node type | Notes |
-|-----------|-------|
-| `SEND_WEBHOOK` | Prefer REST connector + path, or dedicated WEBHOOK connector URL |
-
-#### Needs **no** connector (`integrationId = null`)
-
-| Node type | Why |
-|-----------|-----|
-| `MANUAL_TRIGGER`, `SCHEDULE`, `WEBHOOK`, `ASSESSMENT_COMPLETED`, `CANDIDATE_HIRED` | Start the run; schedule/webhook config on Trigger later |
-| `CONDITION`, `FILTER`, `FOR_EACH`, `TRANSFORM_DATA`, `SWITCH`, `MERGE` | Pure logic in worker |
-| `DELAY`, `LOG_RESULT`, confirmation-style utility | Local to engine |
-
-Builder should **hide** connector picker for these types.
-
----
-
-### Connections page UI (one page)
-
-Route: `/dashboard/connections` (link from dashboard Settings / “external HR integrations”).
-
-**Layout**
-
-1. Header: “Connections” + short line: “Connect your company systems and email so workflow nodes can run.”
-2. List of existing connections (name, type badge, baseUrl/host masked, status, Edit / Disable / Delete).
-3. **Add connection** — choose type first (Custom REST / SMTP / Webhook), then show **only that type’s fields**.
-4. Secrets: password/API key inputs are write-only; edit form shows “•••••• leave blank to keep”.
-5. **Test Connection** button → `POST /api/integrations/:id/test` → `{ success, message }` only; never returns decrypted secret.
-
-Preserve existing teal / glass dashboard look; one job per section (list vs add form).
-
----
-
-### How a node uses a connector at runtime
+The UI displays high-level platform tiles:
 
 ```text
-GET_MONTHLY_ATTENDANCE node
-  integrationId → Integration (REST_API)
-       baseUrl = https://hr.company.com
-       credential = Bearer ***
-  config = { "method": "GET", "path": "/api/attendance/monthly" }
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Connections                                                                │
+│  Connect the tools your workflows use.                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-Worker engine:
-  GET https://hr.company.com/api/attendance/monthly
-  Authorization: Bearer <decrypted>
-```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  [ Google Workspace Icon ]   Google Workspace                               │
+│  hr@company.com  •  Active                                                  │
+│                                                                             │
+│  Capabilities:                                                              │
+│  ✓ Gmail (Send & Draft)   ✓ Calendar (Interview Schedule)  ✓ Google Drive   │
+│                                                                             │
+│  [ Test Connection ]   [ Reconnect / Scopes ]   [ Disconnect ]              │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-```text
-SEND_EMAIL node
-  integrationId → Integration (SMTP)
-  config = { "to": "{{employee.email}}", "subject": "...", "body": "..." }
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  [ Microsoft Icon ]          Microsoft 365                                  │
+│  Not connected — Connect Outlook, Teams, and OneDrive.                      │
+│                                                                             │
+│  [ Connect Microsoft ]                                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-Worker:
-  connect SMTP host/port with decrypted user/pass
-  send mail From = config.from on Integration
-```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  [ Server Icon ]             Custom HR System (REST API)                    │
+│  https://hr.company.internal  •  API Key Auth                               │
+│                                                                             │
+│  [ Edit Settings ]   [ Test Connection ]   [ Delete ]                       │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-If `integrationId` missing on a node that requires one → `NodeExecution` FAILED with message: “Connect a system on the Connections page and select it on this node.”
-
----
-
-### APIs for Phase 2
-
-- `GET/POST /api/integrations`
-- `GET/PATCH/DELETE /api/integrations/[id]`
-- `POST /api/integrations/[id]/test` → `{ success, message }` only
-- Session-guarded; encrypt on write; `CREDENTIAL_SELECT_SAFE` on read
-
-### Phase 2b (same milestone or immediately after)
-
-In builder node properties panel:
-
-- If node type requires connection → Connection dropdown (filter by REST vs SMTP vs WEBHOOK)
-- Fields for path / method / filter / email template
-- Persist `integrationId` + `config` via existing workflow PUT
-
----
-
-## Run Now flow (unchanged summary)
-
-```text
-Connections first → bind nodes → Save
-→ POST /api/workflows/:id/run
-→ Execution QUEUED + Redis { executionId }
-→ Worker claim RUNNING → engine → company API via Connection
-→ UI poll QUEUED → RUNNING → SUCCESS + NodeExecution logs
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  [ Webhook Icon ]            Webhooks & Events                              │
+│  Inbound triggers and outbound webhooks                                     │
+│                                                                             │
+│  [ Configure Webhooks ]                                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Later phases (brief)
+## 6. Node → Connection Matrix in Builder
 
-| Phase | Work |
-|-------|------|
-| 3 | Finish publish / `currentVersionId`; save `integrationId` |
-| 4 | Run enqueue only |
-| 5 | Worker claim + load |
-| 6 | Engine per matrix above |
-| 7 | Retry / stale / idempotency |
-| 8 | Wire Run Now UI off simulation |
-| Later | OAuth providers (Greenhouse, M365, Gmail) on same Connection model — no engine rewrite |
+Nodes simply point to an `integrationId` and pick an action:
+
+| Node Type | Connection | Action / Config | Notes |
+| :--- | :--- | :--- | :--- |
+| `SEND_EMAIL` | **Google Workspace** | `Action: Send Email` or `Create Draft`<br/>`To: {{candidate.email}}`, `Subject`, `Body` | Calls Gmail REST API directly; no SMTP credentials required. |
+| `SCHEDULE_INTERVIEW` | **Google Workspace** | `Action: Create Event`<br/>`Title`, `Start`, `End`, `Attendees` | Calls Google Calendar API; creates calendar invite + Meet link. |
+| `FETCH_DOCUMENT` / `GET_RESUME` | **Google Workspace** | `Action: Fetch File`<br/>`File ID: {{candidate.resume_id}}` | Calls Google Drive API; downloads resume or policy doc. |
+| `GET_MONTHLY_ATTENDANCE` | **Custom HR API** | `Method: GET`, `Path: /api/attendance/monthly` | Calls company HR/ATS endpoint with decrypted Bearer/API Key. |
+| `GET_EMPLOYEES` / `GET_EMPLOYEE` | **Custom HR API** | `Method: GET`, `Path: /api/employees` | Calls company HR/ATS endpoint. |
+| `UPDATE_CANDIDATE_STATUS` | **Custom HR API** | `Method: PATCH`, `Path: /api/candidates/{id}/status` | Updates ATS candidate status. |
+| `CONDITION`, `FILTER`, `FOR_EACH` | *None* (`null`) | Logic evaluated in worker memory | No connection needed. |
 
 ---
 
-## Demo definition of done (Connections + Run)
+## 7. Phased Implementation Roadmap
 
-> Login → **Connections**: add Custom REST (baseUrl + API key) and SMTP → Low Attendance workflow → Get Attendance + Get Employee use REST connection + paths → Send Email uses SMTP → Save → Run Now → Queued → Running → Success → logs show API data / email step.
+### Phase 2A — Google Workspace Unified Connection
+1. Update Prisma schema:
+   - Add `OAUTH` to `IntegrationType`, `OAUTH2` to `CredentialType`.
+   - Add `accountIdentifier` and `metadata` to `Integration`.
+   - Add `scopes` and `expiresAt` to `IntegrationCredential`.
+   - Run `prisma generate` and `prisma db push`.
+2. Implement Google OAuth endpoints:
+   - `GET /api/integrations/google/auth`: Redirects to Google consent with offline access (`access_type=offline&prompt=consent`) and Gmail + Calendar + Drive scopes.
+   - `GET /api/integrations/google/callback`: Exchanges code for tokens, retrieves user profile, encrypts refresh token with AES-256-GCM, and upserts `Integration` record.
+3. Build Google Workspace API Adapter (`apps/web/src/lib/google-workspace.ts` / `packages/workflow-engine`):
+   - Ephemeral access token refresh from stored refresh token.
+   - `sendEmail({ to, subject, body, draftOnly? })`
+   - `createCalendarEvent({ title, start, end, attendees })`
+   - `fetchDriveFile({ fileId })`
+4. Update Connections Page UI:
+   - Google Workspace card with connected email, capability badges, and Disconnect/Test buttons.
+
+### Phase 2B — Custom HR API & Webhook (Completed)
+- Custom REST connection with Base URL, Auth (API Key, Bearer, Basic), default headers, and test connection.
+- Webhooks destination setup.
+
+### Phase 3 — Workflow CRUD & Published Versions (Completed)
+- Workflows, versions, nodes, and edges persisted in Neon PostgreSQL.
+- `WorkflowNode.integrationId` saved and loaded seamlessly.
+
+### Phase 4 — POST Run Endpoint + Redis/BullMQ
+- Create `POST /api/workflows/:id/run`:
+  - Verify user authorization and workflow readiness.
+  - Insert `Execution` record with status `QUEUED`.
+  - Enqueue `{ executionId, workflowId, versionId }` to BullMQ `workflow-executions` queue.
+  - Return `{ executionId, status: "QUEUED" }`.
+- Add `GET /api/executions/:id` for status and log inspection.
+
+### Phase 5 — Worker Consumer & Atomic Claim
+- In `apps/worker`:
+  - Consume jobs from BullMQ queue.
+  - Atomic claim: `UPDATE "Execution" SET status = 'RUNNING', "startedAt" = NOW(), "workerId" = $1 WHERE id = $2 AND status = 'QUEUED' RETURNING *;`
+  - Load workflow graph (nodes and edges) for the version.
+  - Load and decrypt required Integration credentials (`decryptCredential`).
+
+### Phase 6 — Execution Engine with Provider Adapters
+- In `packages/workflow-engine`:
+  - Execute nodes topologically / sequentially.
+  - Route execution based on node type and connection:
+    - If `Google Workspace`: call Google Workspace API Adapter (Gmail / Calendar / Drive).
+    - If `Custom HR API`: perform HTTP fetch to `baseUrl + path` with decrypted auth headers.
+    - If logic node (`FILTER`, `CONDITION`, `FOR_EACH`): evaluate locally.
+  - Record `NodeExecution` rows (`RUNNING` -> `SUCCESS` / `FAILED`) with inputs, outputs, and errors.
+  - Update `Execution` status to `SUCCESS` or `FAILED`.
+
+### Phase 7 — Reliability & Idempotency
+- Idempotency key handling (`IdempotencyKey` table).
+- Safe re-queues, worker crash detection, and execution timeout recovery.
+
+### Phase 8 — Wire Canvas Run to Real API
+- Replace simulated client timer in `flow-canvas.tsx` (`handleRunSimulation`) with live `POST /api/workflows/:id/run`.
+- Update `execution-log-drawer.tsx` to poll `GET /api/executions/:id` to display live step-by-step logs.
