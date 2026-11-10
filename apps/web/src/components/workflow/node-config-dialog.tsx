@@ -27,28 +27,30 @@ import {
   Terminal,
   KeyRound,
   Loader2,
+  Table2,
+  FileUp,
 } from "lucide-react";
 
 export const PRESET_ENDPOINTS = [
-  { group: "Employees", label: "GET /api/employees — All employees directory", method: "GET", path: "/api/employees" },
-  { group: "Employees", label: "GET /api/employees/{id} — Single employee profile", method: "GET", path: "/api/employees/EMP-101" },
-  { group: "Employees", label: "POST /api/employees — Provision new employee", method: "POST", path: "/api/employees", defaultBody: '{\n  "name": "Jane Doe",\n  "email": "jane.doe@example.com",\n  "department": "Engineering",\n  "position": "Software Engineer",\n  "salary": 115000,\n  "status": "ACTIVE"\n}' },
-  { group: "Employees", label: "PATCH /api/employees/{id} — Update employee", method: "PATCH", path: "/api/employees/EMP-101", defaultBody: '{\n  "position": "Staff Engineer",\n  "salary": 135000\n}' },
-  { group: "Attendance", label: "GET /api/attendance — List attendance logs", method: "GET", path: "/api/attendance" },
-  { group: "Attendance", label: "GET /api/attendance?belowThresholdOnly=true — Alert low attendance (<75%)", method: "GET", path: "/api/attendance?belowThresholdOnly=true" },
-  { group: "Attendance", label: "GET /api/attendance/monthly — Monthly attendance summary", method: "GET", path: "/api/attendance/monthly?period=2026-09" },
-  { group: "Leaves", label: "GET /api/leave — List leave records & requests", method: "GET", path: "/api/leave" },
-  { group: "Leaves", label: "GET /api/leave?status=PENDING — Pending leave requests", method: "GET", path: "/api/leave?status=PENDING" },
-  { group: "Candidates", label: "GET /api/candidates — Candidate pipeline", method: "GET", path: "/api/candidates" },
-  { group: "Candidates", label: "GET /api/candidates/{id} — Single candidate details", method: "GET", path: "/api/candidates/CAND-201" },
-  { group: "Candidates", label: "PATCH /api/candidates/{id}/status — Update candidate status/stage", method: "PATCH", path: "/api/candidates/CAND-201/status", defaultBody: '{\n  "stage": "OFFER",\n  "status": "ACTIVE"\n}' },
-  { group: "Assessments", label: "GET /api/assessments/{id} — Candidate assessment scores", method: "GET", path: "/api/assessments/ASM-301" },
-  { group: "Interviews", label: "GET /api/interviewers — List available interviewers", method: "GET", path: "/api/interviewers" },
-  { group: "Interviews", label: "GET /api/interviewers/availability — Check slot availability", method: "GET", path: "/api/interviewers/availability?interviewerId=INTV-401" },
-  { group: "Interviews", label: "POST /api/interviews — Schedule interview & Meet link", method: "POST", path: "/api/interviews", defaultBody: '{\n  "candidateId": "CAND-201",\n  "interviewerId": "INTV-401",\n  "scheduledAt": "2026-10-06T14:00:00Z",\n  "durationMinutes": 45\n}' },
-  { group: "Interviews", label: "POST /api/interviews/assign — Assign interviewer to candidate", method: "POST", path: "/api/interviews/assign", defaultBody: '{\n  "candidateId": "CAND-202",\n  "interviewerId": "INTV-402",\n  "date": "2026-10-07T10:00:00Z"\n}' },
-  { group: "Onboarding", label: "POST /api/onboarding/tasks — Create onboarding checklist task", method: "POST", path: "/api/onboarding/tasks", defaultBody: '{\n  "employeeId": "EMP-101",\n  "title": "Complete Security Compliance Training",\n  "description": "Set up MFA and workstation keys",\n  "dueDate": "2026-10-10T18:00:00Z"\n}' },
-  { group: "Webhooks / Echo", label: "ALL /api/http-request — Universal echo test endpoint", method: "POST", path: "/api/http-request", defaultBody: '{\n  "test": true,\n  "action": "webhook_verification"\n}' },
+  { id: "emp-list", group: "Employees", label: "GET /api/employees — All employees directory", method: "GET", path: "/api/employees" },
+  { id: "emp-one", group: "Employees", label: "GET /api/employees/{id} — Single employee profile", method: "GET", path: "/api/employees/EMP-101" },
+  { id: "emp-create", group: "Employees", label: "POST /api/employees — Provision new employee", method: "POST", path: "/api/employees", defaultBody: '{\n  "name": "Jane Doe",\n  "email": "jane.doe@example.com",\n  "department": "Engineering",\n  "position": "Software Engineer",\n  "salary": 115000,\n  "status": "ACTIVE"\n}' },
+  { id: "emp-patch", group: "Employees", label: "PATCH /api/employees/{id} — Update employee", method: "PATCH", path: "/api/employees/EMP-101", defaultBody: '{\n  "position": "Staff Engineer",\n  "salary": 135000\n}' },
+  { id: "att-list", group: "Attendance", label: "GET /api/attendance — List attendance logs", method: "GET", path: "/api/attendance" },
+  { id: "att-low", group: "Attendance", label: "GET /api/attendance?belowThresholdOnly=true — Alert low attendance (<75%)", method: "GET", path: "/api/attendance?belowThresholdOnly=true" },
+  { id: "att-monthly", group: "Attendance", label: "GET /api/attendance/monthly — Monthly attendance summary", method: "GET", path: "/api/attendance/monthly?period=2026-09" },
+  { id: "leave-list", group: "Leaves", label: "GET /api/leave — List leave records & requests", method: "GET", path: "/api/leave" },
+  { id: "leave-pending", group: "Leaves", label: "GET /api/leave?status=PENDING — Pending leave requests", method: "GET", path: "/api/leave?status=PENDING" },
+  { id: "cand-list", group: "Candidates", label: "GET /api/candidates — Candidate pipeline", method: "GET", path: "/api/candidates" },
+  { id: "cand-one", group: "Candidates", label: "GET /api/candidates/{id} — Single candidate details", method: "GET", path: "/api/candidates/CAND-201" },
+  { id: "cand-status", group: "Candidates", label: "PATCH /api/candidates/{id}/status — Update candidate status/stage", method: "PATCH", path: "/api/candidates/CAND-201/status", defaultBody: '{\n  "stage": "OFFER",\n  "status": "ACTIVE"\n}' },
+  { id: "asm-one", group: "Assessments", label: "GET /api/assessments/{id} — Candidate assessment scores", method: "GET", path: "/api/assessments/ASM-301" },
+  { id: "intv-list", group: "Interviews", label: "GET /api/interviewers — List available interviewers", method: "GET", path: "/api/interviewers" },
+  { id: "intv-avail", group: "Interviews", label: "GET /api/interviewers/availability — Check slot availability", method: "GET", path: "/api/interviewers/availability?interviewerId=INTV-401" },
+  { id: "intv-sched", group: "Interviews", label: "POST /api/interviews — Schedule interview & Meet link", method: "POST", path: "/api/interviews", defaultBody: '{\n  "candidateId": "CAND-201",\n  "interviewerId": "INTV-401",\n  "scheduledAt": "2026-10-06T14:00:00Z",\n  "durationMinutes": 45\n}' },
+  { id: "intv-assign", group: "Interviews", label: "POST /api/interviews/assign — Assign interviewer to candidate", method: "POST", path: "/api/interviews/assign", defaultBody: '{\n  "candidateId": "CAND-202",\n  "interviewerId": "INTV-402",\n  "date": "2026-10-07T10:00:00Z"\n}' },
+  { id: "onb-task", group: "Onboarding", label: "POST /api/onboarding/tasks — Create onboarding checklist task", method: "POST", path: "/api/onboarding/tasks", defaultBody: '{\n  "employeeId": "EMP-101",\n  "title": "Complete Security Compliance Training",\n  "description": "Set up MFA and workstation keys",\n  "dueDate": "2026-10-10T18:00:00Z"\n}' },
+  { id: "http-echo", group: "Webhooks / Echo", label: "ALL /api/http-request — Universal echo test endpoint", method: "POST", path: "/api/http-request", defaultBody: '{\n  "test": true,\n  "action": "webhook_verification"\n}' },
 ];
 
 type SafeIntegration = {
@@ -77,7 +79,18 @@ const HR_VARIABLES = [
   { label: "Employee Email", value: "{{employee.email}}" },
   { label: "Attendance Rate", value: "{{employee.attendance_rate}}" },
   { label: "Company Name", value: "{{company.name}}" },
+  { label: "Sheet row email", value: "{{item.email}}" },
+  { label: "Sheet row name", value: "{{item.name}}" },
 ];
+
+type SheetPreviewRow = {
+  rowIndex: number;
+  email: string | null;
+  name: string | null;
+  driveFileId: string | null;
+  attachmentName?: string | null;
+  attachmentStatus?: string;
+};
 
 export default function NodeConfigDialog({
   workflowId,
@@ -102,6 +115,14 @@ export default function NodeConfigDialog({
   const [testingDispatch, setTestingDispatch] = useState(false);
   const [dispatchTestResult, setDispatchTestResult] = useState<any | null>(null);
 
+  // Google Sheet / offer-letter preview
+  const [sheetPreviewLoading, setSheetPreviewLoading] = useState(false);
+  const [sheetPreviewError, setSheetPreviewError] = useState<string | null>(null);
+  const [sheetPreviewRows, setSheetPreviewRows] = useState<SheetPreviewRow[]>([]);
+  const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
+  const [sharedFileLabel, setSharedFileLabel] = useState<string | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+
   useEffect(() => {
     if (node) {
       const data = node.data as HRNodeData;
@@ -110,6 +131,10 @@ export default function NodeConfigDialog({
       setIntegrationId(data.integrationId || "");
       setTriggerTestResult(null);
       setDispatchTestResult(null);
+      setSheetPreviewRows([]);
+      setSheetPreviewError(null);
+      setSheetHeaders([]);
+      setSharedFileLabel(null);
     }
   }, [node]);
 
@@ -149,6 +174,7 @@ export default function NodeConfigDialog({
   const isCondition =
     nodeData.nodeType === "CONDITION" || nodeData.nodeType === "FILTER";
   const isEmail = nodeData.nodeType === "SEND_EMAIL";
+  const isGoogleSheet = nodeData.nodeType === "READ_GOOGLE_SHEET";
   const isForEach = nodeData.nodeType === "FOR_EACH";
   const isApproval = nodeData.nodeType === "HUMAN_APPROVAL";
   const isCode = nodeData.nodeType === "CODE";
@@ -158,6 +184,100 @@ export default function NodeConfigDialog({
     nodeData.nodeType === "HTTP_REQUEST";
   const isWebhookTrigger = nodeData.nodeType === "WEBHOOK";
   const isSendWebhook = nodeData.nodeType === "SEND_WEBHOOK" || connType === "WEBHOOK";
+
+  const handleSheetPreview = async (opts?: { resolveFiles?: boolean }) => {
+    if (!integrationId) {
+      setSheetPreviewError("Select a Google Workspace connection first");
+      return;
+    }
+    const spreadsheetId = config.spreadsheetId || config.spreadsheetUrl;
+    if (!spreadsheetId) {
+      setSheetPreviewError("Paste a Google Sheet URL or spreadsheet ID");
+      return;
+    }
+    setSheetPreviewLoading(true);
+    setSheetPreviewError(null);
+    try {
+      const res = await fetch("/api/integrations/google/sheets/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          integrationId,
+          spreadsheetId,
+          sheetName: config.sheetName || "Sheet1",
+          range: config.range || undefined,
+          emailColumn: config.emailColumn || "email",
+          nameColumn: config.nameColumn || "name",
+          driveFileColumn:
+            config.attachmentMode === "per_row" || isGoogleSheet
+              ? config.driveFileColumn || null
+              : null,
+          resolveFiles: Boolean(opts?.resolveFiles),
+          maxRows: 50,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setSheetHeaders(data.headers || []);
+      setSheetPreviewRows(data.rows || []);
+    } catch (err: any) {
+      setSheetPreviewError(err.message || "Preview failed");
+      setSheetPreviewRows([]);
+    } finally {
+      setSheetPreviewLoading(false);
+    }
+  };
+
+  const handleResolveSharedFile = async () => {
+    if (!integrationId || !config.sharedDriveFileId) return;
+    try {
+      const res = await fetch("/api/integrations/google/drive/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          integrationId,
+          fileId: config.sharedDriveFileId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setSharedFileLabel(data.file?.name || data.file?.id);
+      setConfig({
+        ...config,
+        sharedDriveFileId: data.file?.id || config.sharedDriveFileId,
+        sharedDriveFileName: data.file?.name,
+      });
+    } catch (err: any) {
+      setSharedFileLabel(err.message || "Could not resolve file");
+    }
+  };
+
+  const handleUploadSharedPdf = async (file: File | null) => {
+    if (!file || !integrationId) return;
+    setUploadingPdf(true);
+    try {
+      const form = new FormData();
+      form.append("integrationId", integrationId);
+      form.append("file", file);
+      const res = await fetch("/api/integrations/google/drive/upload", {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setConfig({
+        ...config,
+        attachmentMode: "shared",
+        sharedDriveFileId: data.file.id,
+        sharedDriveFileName: data.file.name,
+      });
+      setSharedFileLabel(data.file.name);
+    } catch (err: any) {
+      setSharedFileLabel(err.message || "Upload failed");
+    } finally {
+      setUploadingPdf(false);
+    }
+  };
 
   const webhookUrl = typeof window !== "undefined"
     ? `${window.location.origin}/api/webhooks/${workflowId || "WORKFLOW_ID"}`
@@ -384,6 +504,10 @@ export default function NodeConfigDialog({
                   "Pick your ATS / HR REST connection. Path and method below — not the API key."}
                 {connType === "SMTP" &&
                   "Pick an SMTP connection. To / subject / body stay on this node."}
+                {connType === "OAUTH" &&
+                  "Pick your Google Workspace connection (Sheets / Drive / Gmail)."}
+                {connType === "EMAIL" &&
+                  "Prefer Google Workspace (Gmail + Drive attachments). SMTP remains a fallback."}
                 {connType === "WEBHOOK" &&
                   "Pick a webhook destination connection."}
               </p>
@@ -427,32 +551,32 @@ export default function NodeConfigDialog({
                     View Swagger <ExternalLink className="h-2.5 w-2.5" />
                   </a>
                 </div>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const preset = PRESET_ENDPOINTS.find((p) => p.path === e.target.value);
-                    if (preset) {
-                      setConfig({
-                        ...config,
-                        method: preset.method,
-                        path: preset.path,
-                        ...(preset.defaultBody ? { bodyJson: preset.defaultBody } : {}),
-                      });
-                    }
-                  }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-[#001d3d] shadow-xs"
-                >
-                  <option value="">⚡ Select standard HR endpoint preset...</option>
-                  {Array.from(new Set(PRESET_ENDPOINTS.map((p) => p.group))).map((group) => (
-                    <optgroup key={group} label={group}>
-                      {PRESET_ENDPOINTS.filter((p) => p.group === group).map((p) => (
-                        <option key={p.path} value={p.path}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </optgroup>
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+                  {PRESET_ENDPOINTS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setConfig({
+                          ...config,
+                          method: p.method,
+                          path: p.path,
+                          ...(p.defaultBody ? { bodyJson: p.defaultBody } : {}),
+                        })
+                      }
+                      className={`block w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-[#f0fdfa] ${
+                        config.path === p.path && config.method === p.method
+                          ? "bg-[#f0fdfa] text-[#0d9488] font-medium"
+                          : "text-[#001d3d]"
+                      }`}
+                    >
+                      <span className="text-[9px] uppercase tracking-wide text-slate-400 mr-1.5">
+                        {p.group}
+                      </span>
+                      {p.label}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -799,12 +923,15 @@ export default function NodeConfigDialog({
                   Collection to iterate
                 </label>
                 <select
-                  value={config.collection || "{{employees}}"}
+                  value={config.collection || "{{sheet_rows}}"}
                   onChange={(e) =>
                     setConfig({ ...config, collection: e.target.value })
                   }
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-[#001d3d]"
                 >
+                  <option value="{{sheet_rows}}">
+                    Sheet rows ({"{{sheet_rows}}"} / {"{{item}}"})
+                  </option>
                   <option value="{{employees}}">
                     Employees List ({"{{employees}}"})
                   </option>
@@ -823,8 +950,261 @@ export default function NodeConfigDialog({
             </div>
           )}
 
+          {isGoogleSheet && (
+            <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-200 space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#001d3d]">
+                <Table2 className="h-3.5 w-3.5 text-[#0d9488]" />
+                Google Sheet source
+              </div>
+              <div>
+                <label className="text-[10px] font-medium text-slate-500">
+                  Spreadsheet URL or ID
+                </label>
+                <input
+                  type="text"
+                  value={config.spreadsheetId || config.spreadsheetUrl || ""}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      spreadsheetId: e.target.value,
+                      spreadsheetUrl: e.target.value,
+                    })
+                  }
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-medium text-slate-500">
+                    Tab name
+                  </label>
+                  <input
+                    type="text"
+                    value={config.sheetName || "Sheet1"}
+                    onChange={(e) =>
+                      setConfig({ ...config, sheetName: e.target.value })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-medium text-slate-500">
+                    Email column
+                  </label>
+                  <input
+                    type="text"
+                    value={config.emailColumn || "email"}
+                    onChange={(e) =>
+                      setConfig({ ...config, emailColumn: e.target.value })
+                    }
+                    placeholder="email or A"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-medium text-slate-500">
+                    Name column (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={config.nameColumn || "name"}
+                    onChange={(e) =>
+                      setConfig({ ...config, nameColumn: e.target.value })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-medium text-slate-500">
+                    Drive file column (per-row PDFs)
+                  </label>
+                  <input
+                    type="text"
+                    value={config.driveFileColumn || ""}
+                    onChange={(e) =>
+                      setConfig({ ...config, driveFileColumn: e.target.value })
+                    }
+                    placeholder="offer_pdf_url"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                  />
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={sheetPreviewLoading}
+                onClick={() => handleSheetPreview({ resolveFiles: true })}
+                className="text-xs"
+              >
+                {sheetPreviewLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                ) : (
+                  <Table2 className="h-3.5 w-3.5 mr-1" />
+                )}
+                Fetch &amp; preview rows
+              </Button>
+              {sheetPreviewError && (
+                <p className="text-[11px] text-red-600">{sheetPreviewError}</p>
+              )}
+              {sheetHeaders.length > 0 && (
+                <p className="text-[10px] text-slate-500">
+                  Headers: {sheetHeaders.join(", ")}
+                </p>
+              )}
+              {sheetPreviewRows.length > 0 && (
+                <div className="max-h-40 overflow-auto rounded-lg border border-slate-200 bg-white">
+                  <table className="w-full text-[10px] text-left">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="px-2 py-1">Row</th>
+                        <th className="px-2 py-1">Email</th>
+                        <th className="px-2 py-1">Name</th>
+                        <th className="px-2 py-1">Attachment</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sheetPreviewRows.map((r) => (
+                        <tr key={r.rowIndex} className="border-t border-slate-100">
+                          <td className="px-2 py-1">{r.rowIndex}</td>
+                          <td className="px-2 py-1">{r.email || "—"}</td>
+                          <td className="px-2 py-1">{r.name || "—"}</td>
+                          <td className="px-2 py-1">
+                            {r.attachmentName || r.driveFileId || r.attachmentStatus || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {isEmail && (
             <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Delivery mode
+                </label>
+                <select
+                  value={config.deliveryMode || "draft"}
+                  onChange={(e) =>
+                    setConfig({ ...config, deliveryMode: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-[#001d3d]"
+                >
+                  <option value="draft">Gmail draft (safe default)</option>
+                  <option value="send">Send immediately</option>
+                </select>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
+                <label className="text-xs font-semibold text-[#001d3d] block">
+                  PDF attachment mode
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  <label className="flex items-start gap-2 text-[11px] text-slate-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="attachmentMode"
+                      className="mt-0.5"
+                      checked={(config.attachmentMode || "shared") === "shared"}
+                      onChange={() =>
+                        setConfig({ ...config, attachmentMode: "shared" })
+                      }
+                    />
+                    <span>
+                      <strong>One PDF for everyone</strong> — assignments / same packet
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-[11px] text-slate-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="attachmentMode"
+                      className="mt-0.5"
+                      checked={config.attachmentMode === "per_row"}
+                      onChange={() =>
+                        setConfig({ ...config, attachmentMode: "per_row" })
+                      }
+                    />
+                    <span>
+                      <strong>Different PDF per row</strong> — offer letter from Sheet Drive column
+                    </span>
+                  </label>
+                </div>
+
+                {(config.attachmentMode || "shared") === "shared" ? (
+                  <div className="space-y-2 pt-1">
+                    <label className="text-[10px] font-medium text-slate-500">
+                      Shared Drive file ID / URL
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={config.sharedDriveFileId || ""}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            sharedDriveFileId: e.target.value,
+                          })
+                        }
+                        placeholder="Drive link or file id"
+                        className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResolveSharedFile}
+                        className="text-[10px] shrink-0"
+                      >
+                        Verify
+                      </Button>
+                    </div>
+                    <label className="flex items-center gap-1.5 text-[11px] text-[#0d9488] cursor-pointer">
+                      <FileUp className="h-3.5 w-3.5" />
+                      {uploadingPdf ? "Uploading…" : "Or upload a PDF to Drive"}
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        className="hidden"
+                        disabled={!integrationId || uploadingPdf}
+                        onChange={(e) =>
+                          handleUploadSharedPdf(e.target.files?.[0] || null)
+                        }
+                      />
+                    </label>
+                    {(sharedFileLabel || config.sharedDriveFileName) && (
+                      <p className="text-[10px] text-slate-600">
+                        File: {sharedFileLabel || config.sharedDriveFileName}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2 pt-1">
+                    <label className="text-[10px] font-medium text-slate-500">
+                      Sheet column with Drive link / file ID
+                    </label>
+                    <input
+                      type="text"
+                      value={config.driveFileColumn || "offer_pdf_url"}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          driveFileColumn: e.target.value,
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500">
+                      Use with Read Google Sheet → For Each. Preview attachments from the Sheet node.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-slate-700">
@@ -843,7 +1223,7 @@ export default function NodeConfigDialog({
                 </div>
                 <input
                   type="text"
-                  value={config.recipient || config.to || "{{candidate.email}}"}
+                  value={config.recipient || config.to || "{{item.email}}"}
                   onFocus={() => setActiveField("recipient")}
                   onChange={(e) =>
                     setConfig({
@@ -852,7 +1232,7 @@ export default function NodeConfigDialog({
                       to: e.target.value,
                     })
                   }
-                  placeholder="e.g. {{candidate.email}} or manager@company.com"
+                  placeholder="e.g. {{item.email}} or candidate@company.com"
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-[#001d3d] focus:ring-2 focus:ring-[#14b8a6]"
                 />
               </div>
@@ -863,7 +1243,9 @@ export default function NodeConfigDialog({
                 </label>
                 <input
                   type="text"
-                  value={config.subject || "Welcome to {{company.name}}!"}
+                  value={
+                    config.subject || "Your document from {{company.name}}"
+                  }
                   onFocus={() => setActiveField("subject")}
                   onChange={(e) =>
                     setConfig({ ...config, subject: e.target.value })
@@ -893,7 +1275,7 @@ export default function NodeConfigDialog({
                   value={
                     config.message ||
                     config.body ||
-                    "Hi {{candidate.name}},\n\nWelcome to the team! Your onboarding session is scheduled.\n\nBest regards,\nHR Operations"
+                    "Hi {{item.name}},\n\nPlease find your document attached.\n\nBest regards,\nHR Operations"
                   }
                   onFocus={() => setActiveField("message")}
                   onChange={(e) =>

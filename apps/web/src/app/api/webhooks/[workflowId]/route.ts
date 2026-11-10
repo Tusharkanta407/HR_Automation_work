@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { prisma, type Prisma } from "@hr-automation/db";
+import { enqueueExecution } from "@/lib/enqueue-execution";
 
 type Ctx = { params: Promise<{ workflowId: string }> };
 
@@ -93,9 +94,17 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     },
   });
 
-  console.log(`[webhook] workflow=${workflowId} execution=${execution.id}`);
+  const enqueue = await enqueueExecution({
+    executionId: execution.id,
+    workflowId,
+    versionId: found.version.id,
+  });
+  console.log(`[webhook] workflow=${workflowId} execution=${execution.id}`, enqueue);
 
-  return NextResponse.json({ success: true, executionId: execution.id }, { status: 202 });
+  return NextResponse.json(
+    { success: true, executionId: execution.id, enqueue },
+    { status: 202 },
+  );
 }
 
 export async function GET(req: NextRequest, { params }: Ctx) {

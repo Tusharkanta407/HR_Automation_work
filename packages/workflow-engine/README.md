@@ -2,13 +2,8 @@
 
 Shared workflow execution library used by `apps/worker`.
 
-## Responsibilities
+## Supported path (V1)
 
-- Represent nodes and edges
-- Walk the graph in order
-- Dispatch node executors (trigger, HTTP/HR calls, filter, email, confirmation)
-- Maintain per-execution context/payload between nodes
+`MANUAL_TRIGGER` → `READ_GOOGLE_SHEET` → `FOR_EACH` → `SEND_EMAIL` (Gmail draft/send + PDF attachments)
 
-## Status
-
-Scaffold only. First real path: Low Attendance Alert nodes.
+Also: `SUCCESS`, `LOG_RESULT`, `DELAY`, and other trigger types as no-ops.

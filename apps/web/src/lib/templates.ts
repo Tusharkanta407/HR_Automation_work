@@ -15,6 +15,73 @@ export type HRTemplate = {
 
 export const HR_TEMPLATES: HRTemplate[] = [
   {
+    id: "template-offer-from-sheet",
+    name: "Offer / Document Email from Sheet",
+    category: "Hiring & Recruitment",
+    description:
+      "Reads recipient emails from a Google Sheet and emails a PDF via Gmail — one shared file for everyone (assignments) or a different Drive PDF per row (offer letters). Defaults to Gmail drafts.",
+    runs: "0 runs • ready",
+    lastRun: "—",
+    status: "Active",
+    nodesCount: 4,
+    steps: [
+      "Manual Trigger",
+      "Read Google Sheet",
+      "For Each row",
+      "Send Email (shared or per-row PDF)",
+    ],
+    doc: {
+      name: "Offer / Document Email from Sheet",
+      nodes: [
+        {
+          id: "node-1",
+          type: "MANUAL_TRIGGER",
+          position: { x: 80, y: 160 },
+          config: {},
+        },
+        {
+          id: "node-2",
+          type: "READ_GOOGLE_SHEET",
+          position: { x: 340, y: 160 },
+          config: {
+            sheetName: "Sheet1",
+            emailColumn: "email",
+            nameColumn: "name",
+            driveFileColumn: "offer_pdf_url",
+          },
+        },
+        {
+          id: "node-3",
+          type: "FOR_EACH",
+          position: { x: 620, y: 160 },
+          config: { collection: "{{sheet_rows}}" },
+        },
+        {
+          id: "node-4",
+          type: "SEND_EMAIL",
+          position: { x: 900, y: 160 },
+          config: {
+            deliveryMode: "draft",
+            attachmentMode: "per_row",
+            driveFileColumn: "offer_pdf_url",
+            recipient: "{{item.email}}",
+            to: "{{item.email}}",
+            subject: "Your offer letter — {{company.name}}",
+            message:
+              "Hi {{item.name}},\n\nPlease find your offer letter attached. Reply to this email if you have questions.\n\nBest regards,\nHR Operations",
+            body:
+              "Hi {{item.name}},\n\nPlease find your offer letter attached. Reply to this email if you have questions.\n\nBest regards,\nHR Operations",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1-2", source: "node-1", target: "node-2" },
+        { id: "e2-3", source: "node-2", target: "node-3" },
+        { id: "e3-4", source: "node-3", target: "node-4" },
+      ],
+    },
+  },
+  {
     id: "template-low-attendance",
     name: "Low Attendance Alert",
     category: "Employee Operations",

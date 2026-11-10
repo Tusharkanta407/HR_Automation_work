@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@hr-automation/db": "*",
+    "@hr-automation/google-workspace": "*",
+    "@hr-automation/queue": "*",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slot": "^1.3.3",

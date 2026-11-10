@@ -20,7 +20,9 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@hr-automation/db": ["../../packages/db/src/index.ts"]
+      "@hr-automation/db": ["../../packages/db/src/index.ts"],
+      "@hr-automation/google-workspace": ["../../packages/google-workspace/src/index.ts"],
+      "@hr-automation/queue": ["../../packages/queue/src/index.ts"]
     }
   },
   "include": [

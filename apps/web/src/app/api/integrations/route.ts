@@ -10,6 +10,16 @@ import {
 } from "@hr-automation/db";
 import { getSessionUser } from "@/lib/server-auth";
 
+/** Platform demo HR API — anyone can try the product without their own backend. */
+function getDemoHrApiBaseUrl(): string {
+  return (
+    process.env.DEMO_HR_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_DEMO_HR_API_URL ||
+    process.env.HR_API_BASE_URL ||
+    "https://hr-automation-work.onrender.com"
+  ).replace(/\/$/, "");
+}
+
 function buildCredentialPlaintext(body: {
   authType?: string;
   apiKey?: string;
@@ -60,7 +70,6 @@ function buildCredentialPlaintext(body: {
       plaintext: body.secret,
     };
   }
-  // Webhook optional secret
   if (body.secret) {
     return {
       type: "CUSTOM_JSON",
@@ -73,9 +82,14 @@ function buildCredentialPlaintext(body: {
 /**
  * GET /api/integrations
  * List connections for the current user (secrets never returned).
+ * Query ?demoUrl=1 returns { demoBaseUrl } for the Connections UI.
  */
 export async function GET(req: NextRequest) {
   try {
+    if (req.nextUrl.searchParams.get("demoUrl") === "1") {
+      return NextResponse.json({ demoBaseUrl: getDemoHrApiBaseUrl() });
+    }
+
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -83,10 +97,18 @@ export async function GET(req: NextRequest) {
 
     const typeFilter = req.nextUrl.searchParams.get("type");
     const providerFilter = req.nextUrl.searchParams.get("provider");
-    const where: { userId: string; type?: IntegrationType; provider?: string } = {
+    const where: {
+      userId: string;
+      type?: IntegrationType;
+      provider?: string;
+      OR?: Array<{ type: IntegrationType }>;
+    } = {
       userId: user.id,
     };
-    if (
+    if (typeFilter === "EMAIL") {
+      // Virtual filter: Google OAuth and/or SMTP for SEND_EMAIL
+      where.OR = [{ type: "OAUTH" }, { type: "SMTP" }];
+    } else if (
       typeFilter === "OAUTH" ||
       typeFilter === "REST_API" ||
       typeFilter === "SMTP" ||
@@ -106,6 +128,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       integrations: rows.map(toSafeIntegration),
+      demoBaseUrl: getDemoHrApiBaseUrl(),
     });
   } catch (err: any) {
     console.error("[GET /api/integrations] Error:", err);
@@ -118,7 +141,8 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/integrations
- * Create a Connection (Integration + encrypted credential).
+ * Create a Connection.
+ * REST_API: name + baseUrl only (or useDemo: true). No credentials required.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -136,32 +160,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const name = String(body.name || "").trim();
-    if (!name) {
-      return NextResponse.json({ error: "name is required" }, { status: 400 });
-    }
-
-    const provider =
+    let name = String(body.name || "").trim();
+    let provider =
       String(body.provider || "").trim() || defaultProviderForType(type);
 
     let baseUrl: string | null = null;
     let config: Record<string, unknown> = {};
+    let metadata: Record<string, unknown> = {};
 
     if (type === "REST_API") {
-      baseUrl = String(body.baseUrl || "").trim().replace(/\/$/, "") || null;
-      if (!baseUrl) {
-        return NextResponse.json(
-          { error: "baseUrl is required for REST_API" },
-          { status: 400 }
-        );
-      }
-      if (body.headers) {
-        config.headers =
-          typeof body.headers === "string"
-            ? JSON.parse(body.headers)
-            : body.headers;
+      const useDemo = Boolean(body.useDemo);
+      if (useDemo) {
+        baseUrl = getDemoHrApiBaseUrl();
+        provider = "DEMO_REST";
+        metadata = { source: "demo" };
+        if (!name) name = "Demo HR API";
+      } else {
+        baseUrl = String(body.baseUrl || "").trim().replace(/\/$/, "") || null;
+        if (!baseUrl) {
+          return NextResponse.json(
+            { error: "baseUrl is required (or set useDemo: true)" },
+            { status: 400 }
+          );
+        }
+        provider = provider === "DEMO_REST" ? "DEMO_REST" : "CUSTOM_REST";
+        if (!name) name = "Company HR API";
       }
     } else if (type === "SMTP") {
+      if (!name) {
+        return NextResponse.json({ error: "name is required" }, { status: 400 });
+      }
       const host = String(body.host || "").trim();
       const port = Number(body.port || 587);
       if (!host) {
@@ -184,6 +212,9 @@ export async function POST(req: NextRequest) {
         );
       }
     } else if (type === "WEBHOOK") {
+      if (!name) {
+        return NextResponse.json({ error: "name is required" }, { status: 400 });
+      }
       baseUrl = String(body.baseUrl || body.url || "").trim() || null;
       if (!baseUrl) {
         return NextResponse.json(
@@ -193,6 +224,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (!name) {
+      return NextResponse.json({ error: "name is required" }, { status: 400 });
+    }
+
+    // REST_API: no credentials. SMTP requires creds. WEBHOOK secret optional.
     const credInput =
       type === "SMTP"
         ? {
@@ -202,20 +238,12 @@ export async function POST(req: NextRequest) {
           }
         : type === "WEBHOOK"
           ? { secret: body.secret }
-          : {
-              authType: body.authType || "BEARER",
-              apiKey: body.apiKey,
-              token: body.token,
-              username: body.username,
-              password: body.password,
-              secret: body.secret,
-              headerName: body.headerName,
-            };
+          : null;
 
-    const cred = buildCredentialPlaintext(credInput);
-    if (type !== "WEBHOOK" && !cred) {
+    const cred = credInput ? buildCredentialPlaintext(credInput) : null;
+    if (type === "SMTP" && !cred) {
       return NextResponse.json(
-        { error: "Valid credentials are required for this connection type" },
+        { error: "SMTP username and password are required" },
         { status: 400 }
       );
     }
@@ -228,7 +256,8 @@ export async function POST(req: NextRequest) {
           type,
           provider,
           baseUrl,
-          config: config as any,
+          config: config as object,
+          metadata: metadata as object,
           status: "ACTIVE",
         },
       });

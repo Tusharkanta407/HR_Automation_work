@@ -64,8 +64,8 @@ const TYPE_META: Record<
     icon: Sparkles,
   },
   REST_API: {
-    label: "Custom REST API",
-    description: "Connect your ATS or HR system (base URL + API key / bearer)",
+    label: "Company HR / ATS API",
+    description: "Demo our API, or paste your company base URL — paths are set on each node",
     icon: Globe,
   },
   SMTP: {
@@ -109,12 +109,13 @@ export default function ConnectionsPage() {
   // Form fields for Custom REST / SMTP / Webhook
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [authType, setAuthType] = useState("BEARER");
-  const [apiKey, setApiKey] = useState("");
-  const [token, setToken] = useState("");
+  /** REST: demo = our platform API; custom = paste your URL */
+  const [restMode, setRestMode] = useState<"demo" | "custom">("demo");
+  const [demoBaseUrl, setDemoBaseUrl] = useState(
+    "https://hr-automation-work.onrender.com"
+  );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [headersJson, setHeadersJson] = useState("");
   const [host, setHost] = useState("");
   const [port, setPort] = useState("587");
   const [secure, setSecure] = useState(false);
@@ -141,6 +142,7 @@ export default function ConnectionsPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setIntegrations(data.integrations || []);
+      if (data.demoBaseUrl) setDemoBaseUrl(String(data.demoBaseUrl));
     } catch (err: any) {
       setError(err.message || "Failed to load connections");
     } finally {
@@ -172,12 +174,9 @@ export default function ConnectionsPage() {
   const resetForm = () => {
     setName("");
     setBaseUrl("");
-    setAuthType("BEARER");
-    setApiKey("");
-    setToken("");
+    setRestMode("demo");
     setUsername("");
     setPassword("");
-    setHeadersJson("");
     setHost("");
     setPort("587");
     setSecure(false);
@@ -200,18 +199,18 @@ export default function ConnectionsPage() {
     setSelectedType(row.type);
     setName(row.name);
     setBaseUrl(row.baseUrl || "");
+    if (row.type === "REST_API") {
+      const isDemo =
+        row.provider === "DEMO_REST" ||
+        (row.metadata as any)?.source === "demo";
+      setRestMode(isDemo ? "demo" : "custom");
+    }
     const cfg = (row.config || {}) as Record<string, any>;
     if (row.type === "SMTP") {
       setHost(String(cfg.host || ""));
       setPort(String(cfg.port || 587));
       setSecure(Boolean(cfg.secure));
       setFrom(String(cfg.from || ""));
-    }
-    if (cfg.headers) {
-      setHeadersJson(JSON.stringify(cfg.headers, null, 2));
-    }
-    if (row.credentials[0]?.type) {
-      setAuthType(row.credentials[0].type);
     }
     setFormMode("edit");
   };
@@ -231,17 +230,17 @@ export default function ConnectionsPage() {
       };
 
       if (selectedType === "REST_API") {
-        payload.baseUrl = baseUrl.trim();
-        payload.authType = authType;
-        if (authType === "API_KEY" && apiKey) payload.apiKey = apiKey;
-        if (authType === "BEARER" && (token || apiKey)) {
-          payload.token = token || apiKey;
+        if (restMode === "demo") {
+          payload.useDemo = true;
+          payload.name = name.trim() || "Demo HR API";
+        } else {
+          payload.useDemo = false;
+          payload.baseUrl = baseUrl.trim();
+          payload.name = name.trim() || "Company HR API";
+          if (!payload.baseUrl) {
+            throw new Error("Paste your company API base URL");
+          }
         }
-        if (authType === "BASIC") {
-          payload.username = username;
-          payload.password = password;
-        }
-        if (headersJson.trim()) payload.headers = headersJson;
       } else if (selectedType === "SMTP") {
         payload.host = host.trim();
         payload.port = Number(port) || 587;
@@ -687,7 +686,8 @@ export default function ConnectionsPage() {
                 </div>
                 <h4 className="text-sm font-bold text-[#001d3d]">Company HR / ATS API</h4>
                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                  Connect internal HR software (Base URL + Bearer token or API key) for attendance, employees, and candidate records.
+                  Use our <strong>Demo</strong> API to try the product, or paste your company base URL.
+                  Paths like <code className="text-[10px]">/api/attendance/monthly</code> are set on each workflow node.
                 </p>
               </div>
 
@@ -697,7 +697,7 @@ export default function ConnectionsPage() {
                   onClick={() => openCreate("REST_API")}
                   className="rounded-xl bg-[#001d3d] hover:bg-[#002855] text-white text-xs font-semibold"
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Add REST API
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add HR API
                 </Button>
               </div>
             </div>
@@ -820,8 +820,20 @@ export default function ConnectionsPage() {
                           {row.type === "SMTP"
                             ? `Host: ${String((row.config as any)?.host || "—")}`
                             : `Target: ${maskUrl(row.baseUrl)}`}
-                          {" · "}
-                          Creds: {row.credentials[0]?.type || "none"}
+                          {row.type === "REST_API" &&
+                            (row.provider === "DEMO_REST" ||
+                              (row.metadata as any)?.source === "demo") && (
+                              <>
+                                {" · "}
+                                <span className="text-[#0d9488] font-medium">Demo</span>
+                              </>
+                            )}
+                          {row.type !== "REST_API" && (
+                            <>
+                              {" · "}
+                              Creds: {row.credentials[0]?.type || "none"}
+                            </>
+                          )}
                         </p>
                         {testMsg[row.id] && (
                           <p className="mt-1 text-xs font-medium text-[#0d9488]">
@@ -899,112 +911,83 @@ export default function ConnectionsPage() {
 
                 {selectedType === "REST_API" && (
                   <>
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-semibold text-slate-700">Base URL</label>
-                        <span className="text-[10px] text-slate-400">Quick presets:</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!name) setName("HR Domain API (Render)");
-                            setBaseUrl("https://hr-automation-work.onrender.com");
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-[#f0fdfa] border border-[#14b8a6]/30 text-[11px] font-semibold text-[#0d9488] hover:bg-[#ccfbf1] transition"
-                        >
-                          ⚡ Render Live API (Auto-fill)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!name) setName("HR Mock API (Localhost)");
-                            setBaseUrl("http://localhost:5000");
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-200 transition"
-                        >
-                          💻 Localhost (:5000)
-                        </button>
-                      </div>
-                      <input
-                        type="url"
-                        value={baseUrl}
-                        onChange={(e) => setBaseUrl(e.target.value)}
-                        placeholder="https://hr-automation-work.onrender.com"
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-700">Authentication</label>
-                      <select
-                        value={authType}
-                        onChange={(e) => setAuthType(e.target.value)}
-                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
-                      >
-                        <option value="BEARER">Bearer Token</option>
-                        <option value="API_KEY">API Key Header</option>
-                        <option value="BASIC">Basic Auth (User / Pass)</option>
-                      </select>
-                    </div>
-                    {authType === "BEARER" && (
-                      <div>
-                        <label className="text-xs font-semibold text-slate-700">Bearer Token</label>
-                        <input
-                          type="password"
-                          value={token}
-                          onChange={(e) => setToken(e.target.value)}
-                          placeholder={formMode === "edit" ? "•••••• Leave blank to keep" : "ey..."}
-                          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
-                        />
-                      </div>
-                    )}
-                    {authType === "API_KEY" && (
-                      <div>
-                        <label className="text-xs font-semibold text-slate-700">API Key</label>
-                        <input
-                          type="password"
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          placeholder={formMode === "edit" ? "•••••• Leave blank to keep" : "key_..."}
-                          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
-                        />
-                      </div>
-                    )}
-                    {authType === "BASIC" && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-xs font-semibold text-slate-700">Username</label>
-                          <input
-                            type="text"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-700">Password</label>
-                          <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder={formMode === "edit" ? "••••••" : ""}
-                            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <div>
+                    <div className="space-y-2">
                       <label className="text-xs font-semibold text-slate-700">
-                        Default Headers (JSON, optional)
+                        How do you want to connect?
                       </label>
-                      <textarea
-                        rows={2}
-                        value={headersJson}
-                        onChange={(e) => setHeadersJson(e.target.value)}
-                        placeholder='{ "X-Custom-Header": "value" }'
-                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono focus:border-[#0d9488] focus:outline-hidden"
-                      />
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRestMode("demo");
+                            if (!name || name === "Company HR API") setName("Demo HR API");
+                          }}
+                          className={`rounded-xl border px-3 py-3 text-left transition ${
+                            restMode === "demo"
+                              ? "border-[#0d9488] bg-[#f0fdfa] ring-1 ring-[#0d9488]/30"
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#001d3d]">
+                            <Zap className="h-3.5 w-3.5 text-[#0d9488]" />
+                            Demo (our API)
+                          </div>
+                          <p className="mt-1 text-[10px] text-slate-500 leading-relaxed">
+                            Try the product instantly using the platform HR demo API.
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRestMode("custom");
+                            if (!name || name === "Demo HR API") setName("Company HR API");
+                          }}
+                          className={`rounded-xl border px-3 py-3 text-left transition ${
+                            restMode === "custom"
+                              ? "border-[#0d9488] bg-[#f0fdfa] ring-1 ring-[#0d9488]/30"
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#001d3d]">
+                            <Globe className="h-3.5 w-3.5 text-[#0d9488]" />
+                            Your API
+                          </div>
+                          <p className="mt-1 text-[10px] text-slate-500 leading-relaxed">
+                            Paste your company HR / ATS base URL.
+                          </p>
+                        </button>
+                      </div>
                     </div>
+
+                    {restMode === "demo" ? (
+                      <div className="rounded-xl border border-[#14b8a6]/25 bg-[#f0fdfa] px-3 py-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#0d9488]">
+                          Demo base URL
+                        </p>
+                        <p className="mt-0.5 break-all text-xs font-medium text-[#001d3d]">
+                          {demoBaseUrl}
+                        </p>
+                        <p className="mt-1.5 text-[10px] text-slate-500">
+                          Node paths (e.g. /api/attendance/monthly) are configured in the workflow builder.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700">
+                          Company API base URL
+                        </label>
+                        <input
+                          type="url"
+                          value={baseUrl}
+                          onChange={(e) => setBaseUrl(e.target.value)}
+                          placeholder="https://hr.yourcompany.com"
+                          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-[#0d9488] focus:outline-hidden"
+                        />
+                        <p className="mt-1.5 text-[10px] text-slate-400">
+                          No API key needed here. Add paths like /api/employees on each node.
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
 

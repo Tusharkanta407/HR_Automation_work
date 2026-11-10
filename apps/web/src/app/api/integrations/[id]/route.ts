@@ -148,20 +148,30 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     }
 
     if (existing.type === "REST_API") {
-      if (body.baseUrl !== undefined) {
+      const demoBase = (
+        process.env.DEMO_HR_API_BASE_URL ||
+        process.env.NEXT_PUBLIC_DEMO_HR_API_URL ||
+        process.env.HR_API_BASE_URL ||
+        "https://hr-automation-work.onrender.com"
+      ).replace(/\/$/, "");
+
+      if (body.useDemo === true) {
+        data.baseUrl = demoBase;
+        data.provider = "DEMO_REST";
+        data.metadata = {
+          ...((existing.metadata as Record<string, unknown>) || {}),
+          source: "demo",
+        };
+      } else if (body.baseUrl !== undefined) {
         data.baseUrl =
           String(body.baseUrl || "").trim().replace(/\/$/, "") || null;
-      }
-      if (body.headers !== undefined) {
-        const prev = (existing.config || {}) as Record<string, unknown>;
-        data.config = {
-          ...prev,
-          headers:
-            typeof body.headers === "string"
-              ? JSON.parse(body.headers || "{}")
-              : body.headers,
+        data.provider = "CUSTOM_REST";
+        data.metadata = {
+          ...((existing.metadata as Record<string, unknown>) || {}),
+          source: "custom",
         };
       }
+      // REST V1: no auth credentials on connection — ignore token/apiKey payloads
     } else if (existing.type === "SMTP") {
       const prev = (existing.config || {}) as Record<string, unknown>;
       const host =
@@ -192,17 +202,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           }
         : existing.type === "WEBHOOK"
           ? { secret: body.secret }
-          : {
-              authType: body.authType,
-              apiKey: body.apiKey,
-              token: body.token,
-              username: body.username,
-              password: body.password,
-              secret: body.secret,
-              headerName: body.headerName,
-            };
+          : null;
 
-    const newCred = buildCredentialPlaintext(credInput);
+    const newCred = credInput ? buildCredentialPlaintext(credInput) : null;
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.integration.update({

@@ -30,6 +30,7 @@ export type NodeType =
   | "GET_ASSESSMENT_RESULT"
   | "GET_INTERVIEWERS"
   | "GET_INTERVIEWER_AVAILABILITY"
+  | "READ_GOOGLE_SHEET"
   // Logic
   | "CONDITION"
   | "FILTER"
@@ -109,6 +110,7 @@ export const NODE_CATALOG: NodeCatalogEntry[] = [
   { type: "GET_ASSESSMENT_RESULT", label: "Get Assessment Result", description: "Fetch assessment scores", category: "HR_DATA", icon: BarChart3 },
   { type: "GET_INTERVIEWERS", label: "Get Interviewers", description: "Fetch interviewer list", category: "HR_DATA", icon: Mic },
   { type: "GET_INTERVIEWER_AVAILABILITY", label: "Get Interviewer Availability", description: "Check interviewer schedules", category: "HR_DATA", icon: CalendarClock },
+  { type: "READ_GOOGLE_SHEET", label: "Read Google Sheet", description: "Fetch rows from a Sheet (email + optional Drive file columns)", category: "HR_DATA", icon: FileText },
 
   // ── Logic ──
   { type: "CONDITION", label: "Condition / IF", description: "Branch based on True / False conditions", category: "LOGIC", icon: GitBranch },
@@ -119,7 +121,7 @@ export const NODE_CATALOG: NodeCatalogEntry[] = [
   { type: "MERGE", label: "Merge", description: "Combine multiple inputs", category: "LOGIC", icon: Merge },
 
   // ── Actions ──
-  { type: "SEND_EMAIL", label: "Send Email", description: "Send automated email with variable mapping", category: "ACTIONS", icon: Mail },
+  { type: "SEND_EMAIL", label: "Send Email", description: "Send via Gmail or SMTP — shared or per-row PDF attachments", category: "ACTIONS", icon: Mail },
   { type: "HTTP_REQUEST", label: "HTTP Request", description: "Make an external HTTP call", category: "ACTIONS", icon: Globe },
   { type: "SEND_WEBHOOK", label: "Send Webhook", description: "POST to an external endpoint", category: "ACTIONS", icon: Radio },
   { type: "UPDATE_EMPLOYEE", label: "Update Employee", description: "Modify employee record", category: "ACTIONS", icon: UserPen },
@@ -155,8 +157,17 @@ export function getNodeEntry(type: NodeType): NodeCatalogEntry | undefined {
   return NODE_CATALOG.find((n) => n.type === type);
 }
 
-/** Which Connection (Integration) type a node needs, or null if none. */
-export type RequiredConnectionType = "REST_API" | "SMTP" | "WEBHOOK" | null;
+/**
+ * Which Connection (Integration) type a node needs, or null if none.
+ * EMAIL = Google OAUTH and/or SMTP (picker loads both).
+ */
+export type RequiredConnectionType =
+  | "REST_API"
+  | "SMTP"
+  | "WEBHOOK"
+  | "OAUTH"
+  | "EMAIL"
+  | null;
 
 const REST_NODE_TYPES = new Set<NodeType>([
   "GET_EMPLOYEES",
@@ -182,7 +193,8 @@ const REST_NODE_TYPES = new Set<NodeType>([
 export function requiredConnectionType(
   nodeType: NodeType | string
 ): RequiredConnectionType {
-  if (nodeType === "SEND_EMAIL") return "SMTP";
+  if (nodeType === "SEND_EMAIL") return "EMAIL";
+  if (nodeType === "READ_GOOGLE_SHEET") return "OAUTH";
   if (nodeType === "SEND_WEBHOOK") return "WEBHOOK";
   if (REST_NODE_TYPES.has(nodeType as NodeType)) return "REST_API";
   return null;

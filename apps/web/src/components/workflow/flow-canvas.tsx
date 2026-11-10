@@ -35,7 +35,7 @@ type FlowCanvasProps = {
   initialEdges: Edge[];
   title: string;
   saveStatus: string;
-  onSave: (currentNodes: Node[], currentEdges: Edge[]) => void;
+  onSave: (currentNodes: Node[], currentEdges: Edge[]) => void | Promise<void>;
   onRenameWorkflow: (newName: string) => void;
   onDirty?: () => void;
 };
@@ -363,17 +363,136 @@ export default function FlowCanvas({
     pushHistory(nextNodes, nextEdges);
   };
 
-  // Live Test / Run Simulation
-  const handleRunSimulation = (isTestMode = false) => {
+  // Live Run → queue worker; Test keeps a light client simulation
+  const handleRunSimulation = async (isTestMode = false) => {
     setExecutionOpen(true);
     setIsRunning(true);
     const now = new Date().toLocaleTimeString();
+
+    if (!isTestMode && workflowId) {
+      setLogs([
+        {
+          timestamp: now,
+          step: "⚡ [Live Run]",
+          detail: "Saving & queueing execution for worker…",
+          status: "running",
+        },
+      ]);
+      try {
+        await Promise.resolve(onSave(nodes, edges));
+        const res = await fetch(`/api/workflows/${workflowId}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        const executionId = data.executionId as string;
+        setLogs((prev) => [
+          ...prev,
+          {
+            timestamp: new Date().toLocaleTimeString(),
+            step: "Queued",
+            detail: `Execution ${executionId.slice(-8)} ${
+              data.enqueue?.enqueued
+                ? "pushed to Redis → worker will claim"
+                : data.enqueue?.reason ||
+                  "queued in DB but Redis enqueue failed — start Redis + worker"
+            }`,
+            status: "success",
+          },
+        ]);
+
+        // Poll until terminal status
+        const poll = async () => {
+          for (let i = 0; i < 60; i++) {
+            await new Promise((r) => setTimeout(r, 1500));
+            const statusRes = await fetch(`/api/executions/${executionId}`);
+            const statusJson = await statusRes.json();
+            if (!statusRes.ok) throw new Error(statusJson.error || "Poll failed");
+            const ex = statusJson.execution;
+            const nodeLogs: ExecutionLog[] = (ex.nodeExecutions || []).map(
+              (ne: any) => ({
+                timestamp: ne.startedAt
+                  ? new Date(ne.startedAt).toLocaleTimeString()
+                  : new Date().toLocaleTimeString(),
+                step: ne.node?.name || ne.node?.type || "Node",
+                detail:
+                  ne.error ||
+                  (ne.output ? JSON.stringify(ne.output).slice(0, 180) : ne.status),
+                status:
+                  ne.status === "SUCCESS"
+                    ? ("success" as const)
+                    : ne.status === "FAILED"
+                      ? ("error" as const)
+                      : ("running" as const),
+              }),
+            );
+            setLogs([
+              {
+                timestamp: now,
+                step: "⚡ [Live Run]",
+                detail: `Status: ${ex.status}`,
+                status:
+                  ex.status === "FAILED"
+                    ? "error"
+                    : ex.status === "SUCCESS"
+                      ? "success"
+                      : "running",
+              },
+              ...nodeLogs,
+            ]);
+            if (ex.status === "SUCCESS" || ex.status === "FAILED" || ex.status === "CANCELLED") {
+              setIsRunning(false);
+              if (ex.error) {
+                setLogs((prev) => [
+                  ...prev,
+                  {
+                    timestamp: new Date().toLocaleTimeString(),
+                    step: "Error",
+                    detail: ex.error,
+                    status: "error",
+                  },
+                ]);
+              }
+              return;
+            }
+          }
+          setIsRunning(false);
+          setLogs((prev) => [
+            ...prev,
+            {
+              timestamp: new Date().toLocaleTimeString(),
+              step: "Timeout",
+              detail: "Still running — check worker logs. Execution remains in DB.",
+              status: "error",
+            },
+          ]);
+        };
+        void poll();
+      } catch (err: any) {
+        setIsRunning(false);
+        setLogs((prev) => [
+          ...prev,
+          {
+            timestamp: new Date().toLocaleTimeString(),
+            step: "Error",
+            detail: err.message || "Failed to start run",
+            status: "error",
+          },
+        ]);
+      }
+      return;
+    }
 
     setLogs([
       {
         timestamp: now,
         step: isTestMode ? "⚡ [Test Mode]" : "⚡ [Live Run]",
-        detail: `Initializing workflow execution with ${nodes.length} nodes...`,
+        detail: workflowId
+          ? `Test simulation with ${nodes.length} nodes…`
+          : "Save the workflow to the cloud to use live Run (worker).",
         status: "running",
       },
     ]);
@@ -394,10 +513,8 @@ export default function FlowCanvas({
       return;
     }
 
-    // Step through each node sequentially
     nodes.forEach((node, index) => {
       setTimeout(() => {
-        // Set this node to running
         setNodes((nds) =>
           nds.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, status: "running" } } : n))
         );
@@ -411,18 +528,17 @@ export default function FlowCanvas({
             timestamp: stepTime,
             step: `Step ${index + 1}: ${data.label}`,
             detail:
-              data.nodeType === "CONDITION"
-                ? `Condition evaluated: ${data.config?.condition || "True"} -> Branch TRUE selected`
-                : data.nodeType === "FOR_EACH"
-                ? "Iterated 4 items successfully"
+              data.nodeType === "READ_GOOGLE_SHEET"
+                ? "Would fetch Google Sheet rows"
                 : data.nodeType === "SEND_EMAIL"
-                ? `Dispatched email template to ${data.config?.recipient || "{{candidate.email}}"}`
-                : "Executed successfully without errors",
+                  ? `Would email ${data.config?.recipient || "{{item.email}}"} (${data.config?.attachmentMode || "shared"} PDF, ${data.config?.deliveryMode || "draft"})`
+                  : data.nodeType === "FOR_EACH"
+                    ? "Would iterate sheet rows"
+                    : "Simulated successfully",
             status: "success",
           },
         ]);
 
-        // Complete this node
         setTimeout(() => {
           setNodes((nds) =>
             nds.map((n) =>
@@ -437,7 +553,7 @@ export default function FlowCanvas({
               {
                 timestamp: new Date().toLocaleTimeString(),
                 step: "Done",
-                detail: "✨ All steps executed successfully with 0 errors.",
+                detail: "Test simulation finished (no emails sent).",
                 status: "success",
               },
             ]);

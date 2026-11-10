@@ -159,3 +159,6 @@ export function defaultProviderForType(
       return "CUSTOM_REST";
   }
 }
+
+/** Provider slug for the platform demo HR API connection. */
+export const DEMO_REST_PROVIDER = "DEMO_REST";
