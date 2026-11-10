@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -90,7 +90,7 @@ function maskUrl(url: string | null): string {
   }
 }
 
-export default function ConnectionsPage() {
+function ConnectionsPageContent() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1087,5 +1087,20 @@ export default function ConnectionsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+/** useSearchParams() requires Suspense for Next.js static prerender (Vercel build). */
+export default function ConnectionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+          <Loader2 className="h-6 w-6 animate-spin text-[#0d9488]" />
+        </div>
+      }
+    >
+      <ConnectionsPageContent />
+    </Suspense>
   );
 }
