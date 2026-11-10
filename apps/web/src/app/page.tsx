@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import SignInModal from "@/components/sign-in";
 import { GradientBackground } from "@/components/GradientBackground";
@@ -72,8 +73,26 @@ export default function App() {
           </motion.div>
         </div>
 
-        {/* Upload your demo later as public/demo.mp4 and swap this placeholder */}
-        <div className="aspect-video w-full max-w-3xl rounded-3xl border border-teal-200/60 bg-white/50 shadow-sm backdrop-blur-sm" />
+        <motion.div
+          className="w-full max-w-5xl overflow-hidden rounded-3xl border border-teal-200/60 bg-white/80 p-2 shadow-sm backdrop-blur-sm sm:p-3"
+          variants={fadeUpVariants}
+          initial="initial"
+          animate="animate"
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-[#f8fafc]">
+            <Image
+              src="/workflow-preview.png"
+              alt="HR Automation workflow builder preview"
+              width={1600}
+              height={780}
+              priority
+              quality={95}
+              className="h-auto w-full object-contain"
+              sizes="(max-width: 1024px) 100vw, 1024px"
+            />
+          </div>
+        </motion.div>
 
         <footer className="flex items-center gap-2 text-sm text-zinc-500">
           <p>© {new Date().getFullYear()} HR Automation. All rights reserved.</p>
